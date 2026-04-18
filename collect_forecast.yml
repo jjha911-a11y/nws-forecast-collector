@@ -1,0 +1,58 @@
+name: Collect NWS Forecast
+
+# Run 4 times per day at 0000, 0600, 1200, 1800 UTC
+# These align roughly with NWS forecast update cycles
+on:
+  schedule:
+    - cron: "15 0 * * *"    # 00:15 UTC  (5:15 PM PDT / 6:15 PM PST)
+    - cron: "15 6 * * *"    # 06:15 UTC  (11:15 PM PDT / 11:15 PM PST)
+    - cron: "15 12 * * *"   # 12:15 UTC  (5:15 AM PDT / 4:15 AM PST)
+    - cron: "15 18 * * *"   # 18:15 UTC  (11:15 AM PDT / 10:15 AM PST)
+  # Also allow manual trigger from the GitHub Actions UI (useful for testing)
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    # Give the workflow permission to write back to the repo
+    permissions:
+      contents: write
+
+    steps:
+      # Step 1: Check out the repository so we can read/write files
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch the full history so git push works correctly
+          fetch-depth: 1
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: pip install requests
+
+      # Step 4: Run the collector script
+      - name: Collect NWS forecast
+        run: python collect_forecast.py
+
+      # Step 5: Commit the updated CSV back to the repo
+      # If nothing changed (NWS API was down, etc.) this step is a no-op
+      - name: Commit updated forecast data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/forecasts.csv
+          # Only commit if there are actual changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit (collector may have found no new data)."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "forecast snapshot: ${TIMESTAMP}"
+            git push
+          fi
