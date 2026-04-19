@@ -6,52 +6,44 @@ Mirrors the data model used by the forecast-verification dashboard exactly.
 
 Each snapshot is ONE fetch of the current 7-day NWS forecast. A snapshot
 is only written if the NWS forecast has actually been updated since the
-last saved snapshot — deduplication is keyed on the NWS `updateTime` field.
-
-Each snapshot produces exactly 7 rows (one per forecast day), plus two
-timestamp columns:
-  - forecast_updated_at  : when NWS last issued this forecast (their updateTime)
-  - retrieved_at         : when THIS script ran and pulled the data (UTC)
-
-CSV grows by 7 rows per new forecast version. Typically NWS updates the
-forecast 2-4 times per day, so you'll accumulate 14-28 rows per day.
-Running the script more often than the NWS update cycle costs nothing —
-duplicates are simply skipped and logged.
+last saved snapshot — deduplication is keyed on the NWS updateTime field
+and persisted in a lightweight sentinel file (data/last_update.txt) so
+concurrent GitHub Actions runs cannot both write the same forecast version.
 """
 
 import requests
 import csv
 import os
 import sys
-from datetime import datetime, timezone, date
+import re
+from datetime import datetime, timezone, date, timedelta
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-LAT         = 36.073861      # matches dashboard exactly
-LON         = -115.152917    # matches dashboard exactly
-OUTPUT_FILE = "data/forecasts.csv"
+LAT         = 36.073861
+LON         = -115.152917
+OUTPUT_FILE  = "data/forecasts.csv"
+SENTINEL_FILE = "data/last_update.txt"   # stores the last written forecast_updated_at
 
 HEADERS = {
-    "User-Agent": "NWS-Forecast-Collector/2.0 (github-actions; klas-verification)",
+    "User-Agent": "NWS-Forecast-Collector/2.1 (github-actions; klas-verification)",
     "Accept":     "application/geo+json",
 }
 
-# Column order must never change once collection has started.
-# Adding new columns at the end is safe; reordering breaks existing data.
 CSV_COLUMNS = [
-    "forecast_updated_at",   # NWS updateTime — the deduplication key
-    "retrieved_at",          # when this script ran (UTC ISO8601)
-    "forecast_date",         # the calendar date this row covers (YYYY-MM-DD)
-    "lead_days",             # days from retrieval date to forecast_date
-    "high_temp_f",           # forecast daytime high °F
-    "low_temp_f",            # forecast overnight low °F
-    "max_wind_speed_mph",    # max sustained wind speed mph (from gridpoint data)
-    "max_wind_gust_mph",     # max wind gust mph (from gridpoint data)
-    "wind_direction",        # daytime wind direction (cardinal)
-    "precip_prob_pct",       # max probability of precipitation % (from gridpoint)
-    "precip_amount_in",      # quantitative precipitation forecast inches
-    "sky_cover_pct",         # average sky cover % for the day
-    "day_short_forecast",    # NWS short text for daytime period
-    "night_short_forecast",  # NWS short text for overnight period
+    "forecast_updated_at",
+    "retrieved_at",
+    "forecast_date",
+    "lead_days",
+    "high_temp_f",
+    "low_temp_f",
+    "max_wind_speed_mph",
+    "max_wind_gust_mph",
+    "wind_direction",
+    "precip_prob_pct",
+    "precip_amount_in",
+    "sky_cover_pct",
+    "day_short_forecast",
+    "night_short_forecast",
 ]
 
 
@@ -63,29 +55,68 @@ def mm_to_in(mm):
     return round(mm * 0.0393701, 3) if mm is not None else None
 
 
-# ── Gridpoint data aggregation (matches dashboard JS exactly) ─────────────────
-def extract_daily_avg(values):
+# ── ISO 8601 duration expansion ───────────────────────────────────────────────
+def parse_iso_duration_days(duration_str):
+    """
+    Parse an ISO 8601 duration string and return total whole days covered.
+    Handles formats like PT6H, P1D, P2DT6H, PT1H, etc.
+    Returns 1 if the duration is less than one full day (covers only that date).
+    """
+    if not duration_str:
+        return 1
+    days  = int(re.search(r'(\d+)D', duration_str).group(1)) if re.search(r'(\d+)D', duration_str) else 0
+    hours = int(re.search(r'(\d+)H', duration_str).group(1)) if re.search(r'(\d+)H', duration_str) else 0
+    total_hours = days * 24 + hours
+    # A value with validTime "2026-04-24T06:00:00+00:00/P2DT6H" covers 2d 6h = 54h
+    # starting at 06:00, meaning it covers dates April 24 and April 25.
+    # We return how many calendar dates it touches beyond the start date.
+    return max(1, (total_hours + 23) // 24)   # ceiling division gives dates spanned
+
+
+def expand_gridpoint_values(values):
+    """
+    Expand gridpoint value array into a dict keyed by calendar date (YYYY-MM-DD).
+    Each entry in values has a validTime like "2026-04-19T06:00:00+00:00/PT6H".
+    Multi-day intervals are expanded so every covered date gets the value.
+    Returns dict: {date_str: [value, ...]} for later aggregation.
+    """
     buckets = {}
     for v in values:
-        day = v["validTime"].split("/")[0].split("T")[0]
-        buckets.setdefault(day, []).append(v["value"])
+        valid_time = v.get("validTime", "")
+        val = v.get("value")
+        if val is None:
+            continue
+        # Split "startTime/duration"
+        if "/" in valid_time:
+            start_str, duration_str = valid_time.split("/", 1)
+        else:
+            start_str, duration_str = valid_time, "PT1H"
+
+        # Parse start date
+        try:
+            start_date = date.fromisoformat(start_str[:10])
+        except ValueError:
+            continue
+
+        num_days = parse_iso_duration_days(duration_str)
+        for offset in range(num_days):
+            d = str(start_date + timedelta(days=offset))
+            buckets.setdefault(d, []).append(val)
+
+    return buckets
+
+
+def daily_avg(values):
+    buckets = expand_gridpoint_values(values)
     return {d: sum(vals) / len(vals) for d, vals in buckets.items()}
 
-def extract_daily_max(values):
-    result = {}
-    for v in values:
-        day = v["validTime"].split("/")[0].split("T")[0]
-        if v["value"] is not None:
-            if day not in result or v["value"] > result[day]:
-                result[day] = v["value"]
-    return result
+def daily_max(values):
+    buckets = expand_gridpoint_values(values)
+    return {d: max(vals) for d, vals in buckets.items()}
 
-def extract_daily_sum(values):
-    result = {}
-    for v in values:
-        day = v["validTime"].split("/")[0].split("T")[0]
-        result[day] = result.get(day, 0) + (v["value"] or 0)
-    return result
+def daily_sum(values):
+    buckets = expand_gridpoint_values(values)
+    return {d: sum(vals) for d, vals in buckets.items()}
 
 
 # ── NWS API calls ──────────────────────────────────────────────────────────────
@@ -108,10 +139,11 @@ def fetch_forecast(grid):
     grid_resp.raise_for_status()
     gp = grid_resp.json()["properties"]
 
-    periods    = fcst["properties"]["periods"]
-    updated_at = fcst["properties"]["updateTime"]
+    periods      = fcst["properties"]["periods"]
+    updated_at   = fcst["properties"]["updateTime"]
     retrieved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Build daily rows from daytime/overnight period pairs
     daily = []
     for i, p in enumerate(periods):
         if not p.get("isDaytime"):
@@ -131,25 +163,57 @@ def fetch_forecast(grid):
             "sky_cover_pct":      None,
         })
 
-    sky_cover  = extract_daily_avg(gp.get("skyCover",                   {}).get("values", []))
-    wind_speed = extract_daily_max(gp.get("windSpeed",                  {}).get("values", []))
-    wind_gust  = extract_daily_max(gp.get("windGust",                   {}).get("values", []))
-    qpf        = extract_daily_sum(gp.get("quantitativePrecipitation",  {}).get("values", []))
-    pop        = extract_daily_max(gp.get("probabilityOfPrecipitation", {}).get("values", []))
+    # Augment with gridpoint data using duration-aware expansion
+    sky_cover  = daily_avg(gp.get("skyCover",                   {}).get("values", []))
+    wind_speed = daily_max(gp.get("windSpeed",                  {}).get("values", []))
+    wind_gust  = daily_max(gp.get("windGust",                   {}).get("values", []))
+    qpf        = daily_sum(gp.get("quantitativePrecipitation",  {}).get("values", []))
+    pop        = daily_max(gp.get("probabilityOfPrecipitation", {}).get("values", []))
 
     for d in daily:
         dt = d["date"]
-        if dt in sky_cover:  d["sky_cover_pct"]      = round(sky_cover[dt])
-        if dt in wind_speed: d["max_wind_speed_mph"]  = kph_to_mph(wind_speed[dt])
-        if dt in wind_gust:  d["max_wind_gust_mph"]   = kph_to_mph(wind_gust[dt])
-        if dt in qpf:        d["precip_amount_in"]     = mm_to_in(qpf[dt])
-        if dt in pop:        d["precip_prob_pct"]      = round(pop[dt])
+        if dt in sky_cover:  d["sky_cover_pct"]       = round(sky_cover[dt])
+        if dt in wind_speed: d["max_wind_speed_mph"]   = kph_to_mph(wind_speed[dt])
+        if dt in wind_gust:  d["max_wind_gust_mph"]    = kph_to_mph(wind_gust[dt])
+        if dt in qpf:        d["precip_amount_in"]      = mm_to_in(qpf[dt])
+        if dt in pop:        d["precip_prob_pct"]       = round(pop[dt])
 
     return {
         "forecast_updated_at": updated_at,
         "retrieved_at":        retrieved_at,
         "days":                daily,
     }
+
+
+# ── Deduplication ─────────────────────────────────────────────────────────────
+def load_last_update():
+    """
+    Read the sentinel file for the last written forecast_updated_at.
+    Falls back to scanning the CSV if the sentinel doesn't exist yet
+    (handles transition from old collector runs).
+    """
+    # Prefer the sentinel file — it's committed atomically with the CSV
+    if os.path.exists(SENTINEL_FILE):
+        with open(SENTINEL_FILE) as f:
+            val = f.read().strip()
+            if val:
+                return val
+
+    # Fallback: scan CSV for the most recent forecast_updated_at
+    if not os.path.exists(OUTPUT_FILE):
+        return None
+    last = None
+    with open(OUTPUT_FILE, newline="") as f:
+        for row in csv.DictReader(f):
+            val = row.get("forecast_updated_at", "").strip()
+            if val:
+                last = val   # last row wins — CSV is append-only so this is most recent
+    return last
+
+def save_sentinel(updated_at):
+    os.makedirs("data", exist_ok=True)
+    with open(SENTINEL_FILE, "w") as f:
+        f.write(updated_at)
 
 
 # ── CSV helpers ────────────────────────────────────────────────────────────────
@@ -160,20 +224,9 @@ def ensure_output_file():
             csv.DictWriter(f, fieldnames=CSV_COLUMNS).writeheader()
         print(f"  Created new file: {OUTPUT_FILE}")
 
-def load_existing_update_times():
-    seen = set()
-    if not os.path.exists(OUTPUT_FILE):
-        return seen
-    with open(OUTPUT_FILE, newline="") as f:
-        for row in csv.DictReader(f):
-            val = row.get("forecast_updated_at", "").strip()
-            if val:
-                seen.add(val)
-    return seen
-
 def append_snapshot(forecast):
-    retrieved    = forecast["retrieved_at"]
-    updated      = forecast["forecast_updated_at"]
+    retrieved      = forecast["retrieved_at"]
+    updated        = forecast["forecast_updated_at"]
     retrieved_date = date.fromisoformat(retrieved[:10])
 
     with open(OUTPUT_FILE, "a", newline="") as f:
@@ -188,15 +241,15 @@ def append_snapshot(forecast):
                 "retrieved_at":         retrieved,
                 "forecast_date":        d["date"],
                 "lead_days":            lead,
-                "high_temp_f":          d.get("high_temp_f")        or "",
-                "low_temp_f":           d.get("low_temp_f")         or "",
-                "max_wind_speed_mph":   d.get("max_wind_speed_mph") or "",
-                "max_wind_gust_mph":    d.get("max_wind_gust_mph")  or "",
-                "wind_direction":       d.get("wind_direction")     or "",
-                "precip_prob_pct":      d.get("precip_prob_pct")    if d.get("precip_prob_pct") is not None else "",
-                "precip_amount_in":     d.get("precip_amount_in")   if d.get("precip_amount_in") is not None else "",
-                "sky_cover_pct":        d.get("sky_cover_pct")      if d.get("sky_cover_pct") is not None else "",
-                "day_short_forecast":   d.get("day_short_forecast") or "",
+                "high_temp_f":          d.get("high_temp_f")         if d.get("high_temp_f")         is not None else "",
+                "low_temp_f":           d.get("low_temp_f")          if d.get("low_temp_f")          is not None else "",
+                "max_wind_speed_mph":   d.get("max_wind_speed_mph")  if d.get("max_wind_speed_mph")  is not None else "",
+                "max_wind_gust_mph":    d.get("max_wind_gust_mph")   if d.get("max_wind_gust_mph")   is not None else "",
+                "wind_direction":       d.get("wind_direction")      or "",
+                "precip_prob_pct":      d.get("precip_prob_pct")     if d.get("precip_prob_pct")     is not None else "",
+                "precip_amount_in":     d.get("precip_amount_in")    if d.get("precip_amount_in")    is not None else "",
+                "sky_cover_pct":        d.get("sky_cover_pct")       if d.get("sky_cover_pct")       is not None else "",
+                "day_short_forecast":   d.get("day_short_forecast")  or "",
                 "night_short_forecast": d.get("night_short_forecast") or "",
             })
 
@@ -208,8 +261,8 @@ def main():
 
     ensure_output_file()
 
-    seen_updates = load_existing_update_times()
-    print(f"  Known forecast versions in CSV: {len(seen_updates)}")
+    last_update = load_last_update()
+    print(f"  Last saved forecast version : {last_update or '(none)'}")
 
     print("  Resolving NWS grid…")
     grid = get_grid_info()
@@ -221,16 +274,18 @@ def main():
     retrieved_at = forecast["retrieved_at"]
     num_days     = len(forecast["days"])
 
-    print(f"  NWS forecast updated at : {updated_at}")
-    print(f"  Retrieved at            : {retrieved_at}")
-    print(f"  Days in forecast        : {num_days}")
+    print(f"  NWS forecast updated at     : {updated_at}")
+    print(f"  Retrieved at                : {retrieved_at}")
+    print(f"  Days in forecast            : {num_days}")
 
-    if updated_at in seen_updates:
+    if updated_at == last_update:
         print(f"\n  SKIP — this forecast version is already saved. No rows written.")
         return
 
     append_snapshot(forecast)
+    save_sentinel(updated_at)
     print(f"\n  NEW — wrote {num_days} rows to {OUTPUT_FILE}")
+    print(f"  Sentinel updated: {SENTINEL_FILE}")
 
     print(f"\n  {'Date':<12} {'High':>5} {'Low':>5} {'Wind':>5} {'Gust':>5} {'PoP%':>5} {'Sky%':>5}  Conditions")
     print(f"  {'-'*78}")
@@ -241,8 +296,8 @@ def main():
             f" {str(d.get('low_temp_f')         or '—'):>5}"
             f" {str(d.get('max_wind_speed_mph') or '—'):>5}"
             f" {str(d.get('max_wind_gust_mph')  or '—'):>5}"
-            f" {str(d.get('precip_prob_pct')    or '—'):>5}"
-            f" {str(d.get('sky_cover_pct')      or '—'):>5}"
+            f" {str(d.get('precip_prob_pct')    if d.get('precip_prob_pct') is not None else '—'):>5}"
+            f" {str(d.get('sky_cover_pct')      if d.get('sky_cover_pct')  is not None else '—'):>5}"
             f"  {d.get('day_short_forecast','')}"
         )
 
