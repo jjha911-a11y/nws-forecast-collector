@@ -120,24 +120,38 @@ def daily_sum(values):
 
 
 # ── NWS API calls ──────────────────────────────────────────────────────────────
+import time
+
+def nws_get(url, retries=3, timeout=20):
+    """GET with retry. Waits 10s between attempts to give NWS time to recover."""
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"    GET {url}  (attempt {attempt}/{retries})")
+            resp = requests.get(url, headers=HEADERS, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt == retries:
+                raise
+            print(f"    Timeout/connection error — waiting 10s before retry…")
+            time.sleep(10)
+        except requests.exceptions.HTTPError:
+            if attempt == retries or resp.status_code not in (500, 503):
+                raise
+            print(f"    HTTP {resp.status_code} — waiting 10s before retry…")
+            time.sleep(10)
+
 def get_grid_info():
     url = f"https://api.weather.gov/points/{LAT},{LON}"
-    resp = requests.get(url, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
-    props = resp.json()["properties"]
+    props = nws_get(url).json()["properties"]
     return {
         "forecast_url":  props["forecast"],
         "gridpoint_url": props["forecastGridData"],
     }
 
 def fetch_forecast(grid):
-    fcst_resp = requests.get(grid["forecast_url"],  headers=HEADERS, timeout=15)
-    fcst_resp.raise_for_status()
-    fcst = fcst_resp.json()
-
-    grid_resp = requests.get(grid["gridpoint_url"], headers=HEADERS, timeout=15)
-    grid_resp.raise_for_status()
-    gp = grid_resp.json()["properties"]
+    fcst = nws_get(grid["forecast_url"]).json()
+    gp   = nws_get(grid["gridpoint_url"]).json()["properties"]
 
     periods      = fcst["properties"]["periods"]
     updated_at   = fcst["properties"]["updateTime"]
