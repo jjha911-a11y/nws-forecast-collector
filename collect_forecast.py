@@ -1,147 +1,262 @@
 #!/usr/bin/env python3
 """
 NWS Forecast Collector for KLAS (Las Vegas)
-Runs on a schedule via GitHub Actions and appends forecast snapshots to CSV.
+============================================
+Mirrors the data model used by the forecast-verification dashboard exactly.
 
-Each run captures the CURRENT NWS hourly forecast and saves it with a
-"captured_at" timestamp so we know exactly when that forecast was issued.
-This is the data that would otherwise be lost — NWS only serves the current
-forecast, not historical ones.
+Each snapshot is ONE fetch of the current 7-day NWS forecast. A snapshot
+is only written if the NWS forecast has actually been updated since the
+last saved snapshot — deduplication is keyed on the NWS `updateTime` field.
+
+Each snapshot produces exactly 7 rows (one per forecast day), plus two
+timestamp columns:
+  - forecast_updated_at  : when NWS last issued this forecast (their updateTime)
+  - retrieved_at         : when THIS script ran and pulled the data (UTC)
+
+CSV grows by 7 rows per new forecast version. Typically NWS updates the
+forecast 2-4 times per day, so you'll accumulate 14-28 rows per day.
+Running the script more often than the NWS update cycle costs nothing —
+duplicates are simply skipped and logged.
 """
 
 import requests
 import csv
-import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-LAT = 36.08
-LON = -115.15
-STATION = "KLAS"
-OUTPUT_FILE = "data/forecasts.csv"   # relative to repo root
+LAT         = 36.073861      # matches dashboard exactly
+LON         = -115.152917    # matches dashboard exactly
+OUTPUT_FILE = "data/forecasts.csv"
+
 HEADERS = {
-    "User-Agent": "NWS-Forecast-Collector/1.0 (github-actions; klas-verification)",
-    "Accept": "application/geo+json",
+    "User-Agent": "NWS-Forecast-Collector/2.0 (github-actions; klas-verification)",
+    "Accept":     "application/geo+json",
 }
 
-# These are the CSV column headers — order matters, must stay consistent
+# Column order must never change once collection has started.
+# Adding new columns at the end is safe; reordering breaks existing data.
 CSV_COLUMNS = [
-    "captured_at",        # when THIS script ran (UTC ISO8601)
-    "forecast_valid_time",# the hour this forecast period covers (UTC ISO8601)
-    "temp_f",             # forecast temperature °F
-    "dewpoint_c",         # forecast dewpoint °C (NWS native unit)
-    "wind_speed_mph",     # forecast wind speed mph
-    "wind_direction",     # forecast wind direction (cardinal, e.g. "SW")
-    "relative_humidity",  # forecast RH %
-    "prob_precip",        # probability of precipitation %
-    "short_forecast",     # NWS short text description
+    "forecast_updated_at",   # NWS updateTime — the deduplication key
+    "retrieved_at",          # when this script ran (UTC ISO8601)
+    "forecast_date",         # the calendar date this row covers (YYYY-MM-DD)
+    "lead_days",             # days from retrieval date to forecast_date
+    "high_temp_f",           # forecast daytime high °F
+    "low_temp_f",            # forecast overnight low °F
+    "max_wind_speed_mph",    # max sustained wind speed mph (from gridpoint data)
+    "max_wind_gust_mph",     # max wind gust mph (from gridpoint data)
+    "wind_direction",        # daytime wind direction (cardinal)
+    "precip_prob_pct",       # max probability of precipitation % (from gridpoint)
+    "precip_amount_in",      # quantitative precipitation forecast inches
+    "sky_cover_pct",         # average sky cover % for the day
+    "day_short_forecast",    # NWS short text for daytime period
+    "night_short_forecast",  # NWS short text for overnight period
 ]
 
 
-def get_nws_gridpoint():
-    """Get the NWS grid coordinates for our lat/lon."""
+# ── Unit conversion helpers ────────────────────────────────────────────────────
+def kph_to_mph(kph):
+    return round(kph * 0.621371, 1) if kph is not None else None
+
+def mm_to_in(mm):
+    return round(mm * 0.0393701, 3) if mm is not None else None
+
+
+# ── Gridpoint data aggregation (matches dashboard JS exactly) ─────────────────
+def extract_daily_avg(values):
+    buckets = {}
+    for v in values:
+        day = v["validTime"].split("/")[0].split("T")[0]
+        buckets.setdefault(day, []).append(v["value"])
+    return {d: sum(vals) / len(vals) for d, vals in buckets.items()}
+
+def extract_daily_max(values):
+    result = {}
+    for v in values:
+        day = v["validTime"].split("/")[0].split("T")[0]
+        if v["value"] is not None:
+            if day not in result or v["value"] > result[day]:
+                result[day] = v["value"]
+    return result
+
+def extract_daily_sum(values):
+    result = {}
+    for v in values:
+        day = v["validTime"].split("/")[0].split("T")[0]
+        result[day] = result.get(day, 0) + (v["value"] or 0)
+    return result
+
+
+# ── NWS API calls ──────────────────────────────────────────────────────────────
+def get_grid_info():
     url = f"https://api.weather.gov/points/{LAT},{LON}"
     resp = requests.get(url, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     props = resp.json()["properties"]
-    return props["forecastHourly"]
+    return {
+        "forecast_url":  props["forecast"],
+        "gridpoint_url": props["forecastGridData"],
+    }
+
+def fetch_forecast(grid):
+    fcst_resp = requests.get(grid["forecast_url"],  headers=HEADERS, timeout=15)
+    fcst_resp.raise_for_status()
+    fcst = fcst_resp.json()
+
+    grid_resp = requests.get(grid["gridpoint_url"], headers=HEADERS, timeout=15)
+    grid_resp.raise_for_status()
+    gp = grid_resp.json()["properties"]
+
+    periods    = fcst["properties"]["periods"]
+    updated_at = fcst["properties"]["updateTime"]
+    retrieved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    daily = []
+    for i, p in enumerate(periods):
+        if not p.get("isDaytime"):
+            continue
+        night = periods[i + 1] if i + 1 < len(periods) else None
+        daily.append({
+            "date":               p["startTime"].split("T")[0],
+            "high_temp_f":        p.get("temperature"),
+            "low_temp_f":         night.get("temperature") if night else None,
+            "wind_direction":     p.get("windDirection", ""),
+            "day_short_forecast":    p.get("shortForecast", ""),
+            "night_short_forecast":  night.get("shortForecast", "") if night else "",
+            "max_wind_speed_mph": None,
+            "max_wind_gust_mph":  None,
+            "precip_prob_pct":    None,
+            "precip_amount_in":   None,
+            "sky_cover_pct":      None,
+        })
+
+    sky_cover  = extract_daily_avg(gp.get("skyCover",                   {}).get("values", []))
+    wind_speed = extract_daily_max(gp.get("windSpeed",                  {}).get("values", []))
+    wind_gust  = extract_daily_max(gp.get("windGust",                   {}).get("values", []))
+    qpf        = extract_daily_sum(gp.get("quantitativePrecipitation",  {}).get("values", []))
+    pop        = extract_daily_max(gp.get("probabilityOfPrecipitation", {}).get("values", []))
+
+    for d in daily:
+        dt = d["date"]
+        if dt in sky_cover:  d["sky_cover_pct"]      = round(sky_cover[dt])
+        if dt in wind_speed: d["max_wind_speed_mph"]  = kph_to_mph(wind_speed[dt])
+        if dt in wind_gust:  d["max_wind_gust_mph"]   = kph_to_mph(wind_gust[dt])
+        if dt in qpf:        d["precip_amount_in"]     = mm_to_in(qpf[dt])
+        if dt in pop:        d["precip_prob_pct"]      = round(pop[dt])
+
+    return {
+        "forecast_updated_at": updated_at,
+        "retrieved_at":        retrieved_at,
+        "days":                daily,
+    }
 
 
-def get_hourly_forecast(hourly_url):
-    """Fetch the current NWS hourly forecast."""
-    resp = requests.get(hourly_url, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
-    return resp.json()["properties"]["periods"]
-
-
-def parse_wind_speed(wind_str):
-    """Extract numeric mph from strings like '10 mph' or '5 to 10 mph'."""
-    if not wind_str:
-        return ""
-    parts = wind_str.replace(" mph", "").split(" to ")
-    try:
-        # If range like "5 to 10", take the average
-        nums = [float(p.strip()) for p in parts if p.strip().isdigit() or p.strip().replace(".", "").isdigit()]
-        return round(sum(nums) / len(nums), 1) if nums else ""
-    except Exception:
-        return ""
-
-
+# ── CSV helpers ────────────────────────────────────────────────────────────────
 def ensure_output_file():
-    """Create the data directory and CSV with headers if it doesn't exist yet."""
     os.makedirs("data", exist_ok=True)
     if not os.path.exists(OUTPUT_FILE):
         with open(OUTPUT_FILE, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-            writer.writeheader()
-        print(f"Created new file: {OUTPUT_FILE}")
+            csv.DictWriter(f, fieldnames=CSV_COLUMNS).writeheader()
+        print(f"  Created new file: {OUTPUT_FILE}")
 
+def load_existing_update_times():
+    seen = set()
+    if not os.path.exists(OUTPUT_FILE):
+        return seen
+    with open(OUTPUT_FILE, newline="") as f:
+        for row in csv.DictReader(f):
+            val = row.get("forecast_updated_at", "").strip()
+            if val:
+                seen.add(val)
+    return seen
 
-def append_forecast_rows(periods, captured_at):
-    """Append all forecast periods from this snapshot to the CSV."""
-    rows_written = 0
+def append_snapshot(forecast):
+    retrieved    = forecast["retrieved_at"]
+    updated      = forecast["forecast_updated_at"]
+    retrieved_date = date.fromisoformat(retrieved[:10])
+
     with open(OUTPUT_FILE, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-        for period in periods:
-            # Parse dewpoint — NWS returns it as {"value": X, "unitCode": "..."}
-            dp = period.get("dewpoint", {})
-            dewpoint_c = dp.get("value", "") if isinstance(dp, dict) else ""
-
-            rh = period.get("relativeHumidity", {})
-            rel_humidity = rh.get("value", "") if isinstance(rh, dict) else ""
-
-            pp = period.get("probabilityOfPrecipitation", {})
-            prob_precip = pp.get("value", "") if isinstance(pp, dict) else ""
-
-            row = {
-                "captured_at": captured_at,
-                "forecast_valid_time": period.get("startTime", ""),
-                "temp_f": period.get("temperature", ""),
-                "dewpoint_c": dewpoint_c if dewpoint_c is not None else "",
-                "wind_speed_mph": parse_wind_speed(period.get("windSpeed", "")),
-                "wind_direction": period.get("windDirection", ""),
-                "relative_humidity": rel_humidity if rel_humidity is not None else "",
-                "prob_precip": prob_precip if prob_precip is not None else "",
-                "short_forecast": period.get("shortForecast", ""),
-            }
-            writer.writerow(row)
-            rows_written += 1
-    return rows_written
+        for d in forecast["days"]:
+            try:
+                lead = (date.fromisoformat(d["date"]) - retrieved_date).days
+            except Exception:
+                lead = ""
+            writer.writerow({
+                "forecast_updated_at":  updated,
+                "retrieved_at":         retrieved,
+                "forecast_date":        d["date"],
+                "lead_days":            lead,
+                "high_temp_f":          d.get("high_temp_f")        or "",
+                "low_temp_f":           d.get("low_temp_f")         or "",
+                "max_wind_speed_mph":   d.get("max_wind_speed_mph") or "",
+                "max_wind_gust_mph":    d.get("max_wind_gust_mph")  or "",
+                "wind_direction":       d.get("wind_direction")     or "",
+                "precip_prob_pct":      d.get("precip_prob_pct")    if d.get("precip_prob_pct") is not None else "",
+                "precip_amount_in":     d.get("precip_amount_in")   if d.get("precip_amount_in") is not None else "",
+                "sky_cover_pct":        d.get("sky_cover_pct")      if d.get("sky_cover_pct") is not None else "",
+                "day_short_forecast":   d.get("day_short_forecast") or "",
+                "night_short_forecast": d.get("night_short_forecast") or "",
+            })
 
 
+# ── Main ───────────────────────────────────────────────────────────────────────
 def main():
-    captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"[{captured_at}] Starting NWS forecast collection for {STATION}")
+    print(f"NWS Forecast Collector — KLAS ({LAT}, {LON})")
+    print(f"Output: {OUTPUT_FILE}")
 
     ensure_output_file()
 
-    print("  Fetching NWS grid point...")
-    hourly_url = get_nws_gridpoint()
-    print(f"  Hourly forecast URL: {hourly_url}")
+    seen_updates = load_existing_update_times()
+    print(f"  Known forecast versions in CSV: {len(seen_updates)}")
 
-    print("  Fetching hourly forecast...")
-    periods = get_hourly_forecast(hourly_url)
-    print(f"  Got {len(periods)} forecast periods")
+    print("  Resolving NWS grid…")
+    grid = get_grid_info()
 
-    rows = append_forecast_rows(periods, captured_at)
-    print(f"  Wrote {rows} rows to {OUTPUT_FILE}")
+    print("  Fetching forecast + gridpoint data…")
+    forecast = fetch_forecast(grid)
 
-    # Report the first few hours as a sanity check in the Actions log
-    print("\n  Forecast snapshot (next 6 hours):")
-    for p in periods[:6]:
-        print(f"    {p['startTime'][:16]}  {p['temperature']}°F  {p.get('shortForecast','')}")
+    updated_at   = forecast["forecast_updated_at"]
+    retrieved_at = forecast["retrieved_at"]
+    num_days     = len(forecast["days"])
 
-    print(f"\n[{captured_at}] Collection complete.")
+    print(f"  NWS forecast updated at : {updated_at}")
+    print(f"  Retrieved at            : {retrieved_at}")
+    print(f"  Days in forecast        : {num_days}")
+
+    if updated_at in seen_updates:
+        print(f"\n  SKIP — this forecast version is already saved. No rows written.")
+        return
+
+    append_snapshot(forecast)
+    print(f"\n  NEW — wrote {num_days} rows to {OUTPUT_FILE}")
+
+    print(f"\n  {'Date':<12} {'High':>5} {'Low':>5} {'Wind':>5} {'Gust':>5} {'PoP%':>5} {'Sky%':>5}  Conditions")
+    print(f"  {'-'*78}")
+    for d in forecast["days"]:
+        print(
+            f"  {d['date']:<12}"
+            f" {str(d.get('high_temp_f')        or '—'):>5}"
+            f" {str(d.get('low_temp_f')         or '—'):>5}"
+            f" {str(d.get('max_wind_speed_mph') or '—'):>5}"
+            f" {str(d.get('max_wind_gust_mph')  or '—'):>5}"
+            f" {str(d.get('precip_prob_pct')    or '—'):>5}"
+            f" {str(d.get('sky_cover_pct')      or '—'):>5}"
+            f"  {d.get('day_short_forecast','')}"
+        )
+
+    print(f"\n  Done.")
 
 
 if __name__ == "__main__":
     try:
         main()
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: Network request failed: {e}", file=sys.stderr)
+        print(f"\nERROR: Network request failed: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"ERROR: Unexpected error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        print(f"\nERROR: {e}", file=sys.stderr)
         sys.exit(1)
