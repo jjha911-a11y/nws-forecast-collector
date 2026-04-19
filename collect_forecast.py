@@ -22,7 +22,6 @@ from datetime import datetime, timezone, date, timedelta
 LAT         = 36.073861
 LON         = -115.152917
 OUTPUT_FILE  = "data/forecasts.csv"
-SENTINEL_FILE = "data/last_update.txt"   # stores the last written forecast_updated_at
 
 HEADERS = {
     "User-Agent": "NWS-Forecast-Collector/2.1 (github-actions; klas-verification)",
@@ -202,32 +201,37 @@ def fetch_forecast(grid):
 # ── Deduplication ─────────────────────────────────────────────────────────────
 def load_last_update():
     """
-    Read the sentinel file for the last written forecast_updated_at.
-    Falls back to scanning the CSV if the sentinel doesn't exist yet
-    (handles transition from old collector runs).
+    Read the last forecast_updated_at from the final line of the CSV.
+    Reading the last line is reliable because the CSV is append-only and
+    is the committed source of truth that GitHub checks out fresh each run.
     """
-    # Prefer the sentinel file — it's committed atomically with the CSV
-    if os.path.exists(SENTINEL_FILE):
-        with open(SENTINEL_FILE) as f:
-            val = f.read().strip()
-            if val:
-                return val
-
-    # Fallback: scan CSV for the most recent forecast_updated_at
     if not os.path.exists(OUTPUT_FILE):
         return None
-    last = None
-    with open(OUTPUT_FILE, newline="") as f:
-        for row in csv.DictReader(f):
-            val = row.get("forecast_updated_at", "").strip()
-            if val:
-                last = val   # last row wins — CSV is append-only so this is most recent
-    return last
+    # Efficiently read only the last non-empty line without loading the whole file
+    last_line = None
+    with open(OUTPUT_FILE, "rb") as f:
+        # Walk backward through the file to find the last non-empty line
+        f.seek(0, 2)  # seek to end
+        pos = f.tell()
+        buf = b""
+        while pos > 0:
+            pos -= 1
+            f.seek(pos)
+            char = f.read(1)
+            if char == b"\n" and buf.strip():
+                break
+            buf = char + buf
+        last_line = buf.decode("utf-8", errors="replace").strip()
 
-def save_sentinel(updated_at):
-    os.makedirs("data", exist_ok=True)
-    with open(SENTINEL_FILE, "w") as f:
-        f.write(updated_at)
+    if not last_line or last_line.startswith("forecast_updated_at"):
+        return None  # file is empty or header-only
+
+    # Parse the first CSV field (forecast_updated_at) from the last row
+    try:
+        first_field = next(csv.reader([last_line]))
+        return first_field[0].strip() if first_field else None
+    except Exception:
+        return None
 
 
 # ── CSV helpers ────────────────────────────────────────────────────────────────
@@ -297,9 +301,7 @@ def main():
         return
 
     append_snapshot(forecast)
-    save_sentinel(updated_at)
     print(f"\n  NEW — wrote {num_days} rows to {OUTPUT_FILE}")
-    print(f"  Sentinel updated: {SENTINEL_FILE}")
 
     print(f"\n  {'Date':<12} {'High':>5} {'Low':>5} {'Wind':>5} {'Gust':>5} {'PoP%':>5} {'Sky%':>5}  Conditions")
     print(f"  {'-'*78}")
