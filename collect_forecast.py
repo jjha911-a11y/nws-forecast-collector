@@ -162,6 +162,19 @@ def fetch_forecast(grid):
         if not p.get("isDaytime"):
             continue
         night = periods[i + 1] if i + 1 < len(periods) else None
+        # Capture PoP directly from the period forecast as a fallback.
+        # The period forecast embeds its own probabilityOfPrecipitation value
+        # which may differ from the gridpoint data for distant forecast days.
+        day_pop   = (p.get("probabilityOfPrecipitation") or {}).get("value")
+        night_pop = ((night or {}).get("probabilityOfPrecipitation") or {}).get("value")
+        period_pop = None
+        if day_pop is not None and night_pop is not None:
+            period_pop = max(day_pop, night_pop)
+        elif day_pop is not None:
+            period_pop = day_pop
+        elif night_pop is not None:
+            period_pop = night_pop
+
         daily.append({
             "date":               p["startTime"].split("T")[0],
             "high_temp_f":        p.get("temperature"),
@@ -171,7 +184,8 @@ def fetch_forecast(grid):
             "night_short_forecast":  night.get("shortForecast", "") if night else "",
             "max_wind_speed_mph": None,
             "max_wind_gust_mph":  None,
-            "precip_prob_pct":    None,
+            "precip_prob_pct":    None,       # filled from gridpoint below; fallback to period_pop
+            "_period_pop":        period_pop, # fallback value, stripped before writing CSV
             "precip_amount_in":   None,
             "sky_cover_pct":      None,
         })
@@ -189,7 +203,12 @@ def fetch_forecast(grid):
         if dt in wind_speed: d["max_wind_speed_mph"]   = kph_to_mph(wind_speed[dt])
         if dt in wind_gust:  d["max_wind_gust_mph"]    = kph_to_mph(wind_gust[dt])
         if dt in qpf:        d["precip_amount_in"]      = mm_to_in(qpf[dt])
-        if dt in pop:        d["precip_prob_pct"]       = round(pop[dt])
+        if dt in pop:
+            d["precip_prob_pct"] = round(pop[dt])
+        # Fallback: if gridpoint gave us nothing (or zero) but period forecast has a value, use it.
+        # Mirrors the dashboard: precipProb ?? dayPrecipProb
+        if d["precip_prob_pct"] is None and d.get("_period_pop") is not None:
+            d["precip_prob_pct"] = round(d["_period_pop"])
 
     return {
         "forecast_updated_at": updated_at,
@@ -254,6 +273,7 @@ def append_snapshot(forecast):
                 lead = (date.fromisoformat(d["date"]) - retrieved_date).days
             except Exception:
                 lead = ""
+            d.pop("_period_pop", None)  # internal working field — not written to CSV
             writer.writerow({
                 "forecast_updated_at":  updated,
                 "retrieved_at":         retrieved,
