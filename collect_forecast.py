@@ -164,7 +164,7 @@ def fetch_forecast(grid):
         # which may differ from the gridpoint data for distant forecast days.
         day_pop   = (p.get("probabilityOfPrecipitation") or {}).get("value")
         night_pop = ((night or {}).get("probabilityOfPrecipitation") or {}).get("value")
-        print(f"    period PoP  {p['startTime'][:10]}  day={day_pop}  night={night_pop}")
+
         period_pop = None
         if day_pop is not None and night_pop is not None:
             period_pop = max(day_pop, night_pop)
@@ -210,7 +210,7 @@ def fetch_forecast(grid):
         period_pop    = round(d["_period_pop"]) if d.get("_period_pop") is not None else None
         candidates    = [v for v in (gridpoint_pop, period_pop) if v is not None]
         d["precip_prob_pct"] = max(candidates) if candidates else None
-        print(f"    PoP resolve {dt}  gridpoint={gridpoint_pop}  period={period_pop}  final={d['precip_prob_pct']}")
+
 
     return {
         "forecast_updated_at": updated_at,
@@ -279,8 +279,7 @@ def ensure_output_file():
             writer.writeheader()
             f.write(existing)
         print(f"  Header prepended to {OUTPUT_FILE}")
-    else:
-        print(f"  Header present — OK")
+
 
 def append_snapshot(forecast):
     retrieved      = forecast["retrieved_at"]
