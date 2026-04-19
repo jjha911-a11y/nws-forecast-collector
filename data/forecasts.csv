@@ -1,1 +1,8 @@
-
+forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,apparent_temp_max_f,apparent_temp_min_f,max_wind_speed_mph,max_wind_gust_mph,wind_direction,avg_dewpoint_f,avg_relative_humidity,precip_prob_pct,precip_amount_in,prob_thunder_pct,sky_cover_pct,min_visibility_miles,day_short_forecast,night_short_forecast,weather_summary
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-19,0,86,62,82.0,57.0,6.9,12.7,SE,13.2,11,0,0.0,0,64,,Partly Sunny,Partly Cloudy,
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-20,1,91,61,86.0,63.0,16.1,25.3,SSE,22.8,15,1,0.0,0,21,,Sunny,Mostly Clear,
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-21,2,87,56,84.0,62.0,25.3,35.7,SSW,23.2,16,2,0.0,0,13,,Sunny then Patchy Blowing Dust,Mostly Clear,patchy:blowing_dust:
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-22,3,76,54,82.0,57.0,23.0,32.2,SW,30.4,26,2,0.0,1,8,,Sunny,Mostly Clear,
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-23,4,80,58,79.0,56.0,10.4,19.6,NW,20.2,19,0,0.0,0,12,,Sunny,Partly Cloudy,
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-24,5,82,58,79.0,60.0,10.4,18.4,SSW,20.8,16,1,0.0,0,31,,Mostly Sunny,Mostly Clear,
+2026-04-19T19:21:16+00:00,2026-04-19T20:26:13Z,2026-04-25,6,81,58,79.0,60.0,10.4,17.3,SSW,24.1,19,3,0.0,1,25,,Mostly Sunny,Partly Cloudy,
