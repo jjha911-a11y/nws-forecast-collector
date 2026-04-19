@@ -72,24 +72,11 @@ def parse_iso_duration_days(duration_str):
     return max(1, (total_hours + 23) // 24)   # ceiling division gives dates spanned
 
 
-# UTC offset for Las Vegas: PDT = -7 (Mar-Nov), PST = -8 (Nov-Mar)
-PACIFIC_UTC_OFFSET_HOURS = -7
-
-def utc_str_to_local_date(utc_str):
-    """Convert a UTC ISO8601 string to a local Pacific calendar date."""
-    clean = utc_str.replace("+00:00", "").replace("Z", "").replace("z", "")
-    try:
-        dt_utc = datetime.fromisoformat(clean)
-    except ValueError:
-        return None
-    return (dt_utc + timedelta(hours=PACIFIC_UTC_OFFSET_HOURS)).date()
-
 def expand_gridpoint_values(values):
     """
-    Expand gridpoint value array into a dict keyed by LOCAL Pacific calendar
-    date (YYYY-MM-DD). Gridpoint validTimes are UTC; converting to local time
-    before extracting the date ensures alignment with period forecast dates,
-    which use local time (e.g. "2026-04-22T06:00:00-07:00").
+    Expand gridpoint value array into a dict keyed by calendar date (YYYY-MM-DD).
+    Uses start_str[:10] to extract the date, matching exactly how the dashboard
+    and period forecast both extract dates — no timezone conversion applied.
     Multi-day duration intervals are expanded so every covered date gets the value.
     """
     buckets = {}
@@ -103,8 +90,9 @@ def expand_gridpoint_values(values):
         else:
             start_str, duration_str = valid_time, "PT1H"
 
-        start_date = utc_str_to_local_date(start_str)
-        if start_date is None:
+        try:
+            start_date = date.fromisoformat(start_str[:10])
+        except ValueError:
             continue
 
         num_days = parse_iso_duration_days(duration_str)
