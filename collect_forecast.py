@@ -164,6 +164,7 @@ def fetch_forecast(grid):
         # which may differ from the gridpoint data for distant forecast days.
         day_pop   = (p.get("probabilityOfPrecipitation") or {}).get("value")
         night_pop = ((night or {}).get("probabilityOfPrecipitation") or {}).get("value")
+        print(f"    period PoP  {p['startTime'][:10]}  day={day_pop}  night={night_pop}")
         period_pop = None
         if day_pop is not None and night_pop is not None:
             period_pop = max(day_pop, night_pop)
@@ -253,10 +254,14 @@ def load_last_update():
 # ── CSV helpers ────────────────────────────────────────────────────────────────
 def ensure_output_file():
     os.makedirs("data", exist_ok=True)
-    if not os.path.exists(OUTPUT_FILE):
+    needs_header = (
+        not os.path.exists(OUTPUT_FILE) or
+        os.path.getsize(OUTPUT_FILE) == 0
+    )
+    if needs_header:
         with open(OUTPUT_FILE, "w", newline="") as f:
             csv.DictWriter(f, fieldnames=CSV_COLUMNS).writeheader()
-        print(f"  Created new file: {OUTPUT_FILE}")
+        print(f"  Created/reset file with header: {OUTPUT_FILE}")
 
 def append_snapshot(forecast):
     retrieved      = forecast["retrieved_at"]
