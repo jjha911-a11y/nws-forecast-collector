@@ -11,6 +11,13 @@ on:
   # Also allow manual trigger from the GitHub Actions UI (useful for testing)
   workflow_dispatch:
 
+# Only allow one run at a time. If a scheduled run starts while a manual
+# run is in progress, it waits rather than running concurrently.
+# This prevents two runs from both reading the same CSV state and writing duplicates.
+concurrency:
+  group: forecast-collector
+  cancel-in-progress: false
+
 jobs:
   collect:
     runs-on: ubuntu-latest
