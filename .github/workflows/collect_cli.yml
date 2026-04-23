@@ -1,0 +1,56 @@
+name: Collect CLI Observations
+
+# Run once daily at 18:00 UTC (11:00 AM PDT / 10:00 AM PST)
+# NWS typically issues the CLI by 8-10 AM local time, so this gives
+# a comfortable buffer for it to be available.
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+# Only one run at a time — prevents duplicate writes if manually triggered
+# while a scheduled run is in progress.
+concurrency:
+  group: cli-collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      # Pull latest before running to get the freshest CSV state
+      - name: Pull latest data before collecting
+        run: git pull --rebase origin main
+
+      - name: Collect CLI observation
+        run: python collect_cli.py
+
+      - name: Commit updated observation data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/observations_cli.csv
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "cli observation: ${TIMESTAMP}"
+            git push --force-with-lease
+          fi
