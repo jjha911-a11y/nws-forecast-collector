@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KLAS Forecast Verification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+/* ── Design tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg:          #080c10;
+  --bg2:         #0d1318;
+  --bg3:         #111820;
+  --surface:     #141d26;
+  --surface2:    #1a2633;
+  --border:      #1e2e3d;
+  --border2:     #243546;
+
+  --amber:       #e8a020;
+  --amber-dim:   #a06c10;
+  --amber-glow:  rgba(232,160,32,0.12);
+  --amber-glow2: rgba(232,160,32,0.06);
+  --cyan:        #2ec4e8;
+  --cyan-dim:    #1a7a96;
+  --green:       #3ddc84;
+  --green-dim:   #1a6640;
+  --red:         #e84040;
+  --red-dim:     #7a1a1a;
+  --purple:      #9b6dff;
+
+  --text:        #d8e8f0;
+  --text-dim:    #6a8898;
+  --text-dimmer: #3a5060;
+  --mono:        'Share Tech Mono', monospace;
+  --sans:        'Barlow', sans-serif;
+  --cond:        'Barlow Condensed', sans-serif;
+
+  --tab-h:       48px;
+  --header-h:    72px;
+  --radius:      4px;
+  --radius2:     8px;
+}
+
+/* ── Reset & base ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Scanline texture overlay ──────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+.header {
+  height: var(--header-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-logo {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.header-logo .call { font-family: var(--mono); font-size: 22px; color: var(--amber); letter-spacing: 2px; }
+.header-logo .sub  { font-family: var(--cond); font-size: 11px; color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase; margin-top: 2px; }
+
+.header-divider { width: 1px; height: 36px; background: var(--border2); }
+
+.header-meta { display: flex; flex-direction: column; }
+.header-meta .title { font-family: var(--cond); font-size: 16px; font-weight: 600; letter-spacing: 1px; color: var(--text); }
+.header-meta .coords { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.header-status { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+.status-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 4px 12px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+}
+.status-pill .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-dimmer);
+}
+.status-pill .dot.ok    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-pill .dot.warn  { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.status-pill .dot.err   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.status-pill .dot.pulse { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Data source controls ──────────────────────────────────────────────── */
+.datasource-bar {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.datasource-bar .label {
+  font-family: var(--cond); font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
+}
+.ds-group { display: flex; align-items: center; gap: 8px; }
+.ds-name {
+  font-family: var(--mono); font-size: 11px; color: var(--amber);
+  background: var(--amber-glow2); border: 1px solid var(--amber-dim);
+  border-radius: var(--radius); padding: 2px 8px;
+}
+.btn {
+  font-family: var(--cond); font-size: 12px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 5px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border2); cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn-amber {
+  background: var(--amber-glow); color: var(--amber);
+  border-color: var(--amber-dim);
+}
+.btn-amber:hover { background: rgba(232,160,32,0.2); border-color: var(--amber); }
+.btn-ghost { background: transparent; color: var(--text-dim); }
+.btn-ghost:hover { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+input[type="file"] { display: none; }
+.file-label {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 5px 14px; border-radius: var(--radius);
+  border: 1px dashed var(--border2); cursor: pointer;
+  color: var(--text-dim); transition: all 0.15s;
+  white-space: nowrap;
+}
+.file-label:hover { border-color: var(--amber-dim); color: var(--amber); }
+.file-label.loaded { border-color: var(--green-dim); color: var(--green); border-style: solid; }
+
+.ds-sep { color: var(--border2); font-size: 18px; }
+
+/* ── Tab navigation ────────────────────────────────────────────────────── */
+.tab-nav {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  padding: 0 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  height: var(--tab-h);
+  padding: 0 20px;
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); cursor: pointer;
+  border: none; background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s; white-space: nowrap;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+.tab-btn .tab-count {
+  background: var(--surface2); border-radius: 10px;
+  padding: 1px 7px; font-size: 10px; font-family: var(--mono);
+  color: var(--text-dim);
+}
+.tab-btn.active .tab-count { background: var(--amber-glow); color: var(--amber); }
+
+/* ── Main content ──────────────────────────────────────────────────────── */
+.content { padding: 24px; max-width: 1600px; margin: 0 auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Cards / surfaces ──────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.card-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+}
+.card-badge {
+  font-family: var(--mono); font-size: 10px;
+  background: var(--amber-glow); color: var(--amber);
+  border: 1px solid var(--amber-dim); border-radius: 10px;
+  padding: 1px 8px;
+}
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .grid4 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 800px)  { .grid2, .grid3, .grid4 { grid-template-columns: 1fr; } }
+
+/* ── Stat tiles ────────────────────────────────────────────────────────── */
+.stat-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-tile::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--amber), transparent);
+}
+.stat-tile.cyan::before  { background: linear-gradient(90deg, var(--cyan), transparent); }
+.stat-tile.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+.stat-tile.purple::before{ background: linear-gradient(90deg, var(--purple), transparent); }
+
+.stat-label {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-family: var(--mono); font-size: 28px; color: var(--amber);
+  line-height: 1;
+}
+.stat-tile.cyan  .stat-value  { color: var(--cyan); }
+.stat-tile.green .stat-value  { color: var(--green); }
+.stat-tile.purple .stat-value { color: var(--purple); }
+.stat-sub {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  margin-top: 6px;
+}
+
+/* ── Data freshness panel ──────────────────────────────────────────────── */
+.freshness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) { .freshness-grid { grid-template-columns: 1fr; } }
+
+.freshness-item {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.freshness-item .fi-label {
+  font-family: var(--cond); font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.freshness-item .fi-file {
+  font-family: var(--mono); font-size: 12px; color: var(--amber);
+}
+.freshness-item .fi-stat {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+}
+.freshness-item .fi-age {
+  font-family: var(--mono); font-size: 12px;
+}
+.fi-age.fresh { color: var(--green); }
+.fi-age.stale { color: var(--amber); }
+.fi-age.old   { color: var(--red); }
+
+/* ── Forecast preview table ────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-dim); padding: 8px 10px;
+  border-bottom: 1px solid var(--border2);
+  text-align: left; white-space: nowrap;
+}
+.data-table th.num { text-align: right; }
+.data-table td {
+  font-family: var(--mono); font-size: 12px;
+  padding: 8px 10px; border-bottom: 1px solid rgba(30,46,61,0.5);
+  color: var(--text);
+}
+.data-table td.num { text-align: right; }
+.data-table tr:hover td { background: var(--surface2); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table .lead-badge {
+  display: inline-block; font-size: 10px;
+  padding: 1px 6px; border-radius: 3px;
+  font-family: var(--mono);
+}
+.lead-0 { background: rgba(61,220,132,0.15); color: var(--green); }
+.lead-1 { background: rgba(46,196,232,0.15); color: var(--cyan); }
+.lead-2, .lead-3 { background: rgba(232,160,32,0.12); color: var(--amber); }
+.lead-4, .lead-5, .lead-6, .lead-7 { background: rgba(155,109,255,0.12); color: var(--purple); }
+
+/* ── Activity log ──────────────────────────────────────────────────────── */
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  max-height: 180px;
+  overflow-y: auto;
+  line-height: 1.8;
+}
+.log-box::-webkit-scrollbar { width: 4px; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.log-line { display: flex; gap: 10px; }
+.log-time { color: var(--text-dimmer); min-width: 80px; }
+.log-msg { color: var(--text-dim); }
+.log-msg.ok   { color: var(--green); }
+.log-msg.warn { color: var(--amber); }
+.log-msg.err  { color: var(--red); }
+
+/* ── Empty states ──────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-dimmer);
+}
+.empty-state .empty-icon {
+  font-size: 40px; margin-bottom: 16px; opacity: 0.4;
+  font-family: var(--mono);
+}
+.empty-state .empty-title {
+  font-family: var(--cond); font-size: 14px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 8px;
+}
+.empty-state .empty-msg { font-size: 13px; color: var(--text-dimmer); }
+
+/* ── Spinner ───────────────────────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Scrollbars ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+/* ── Overview-specific ─────────────────────────────────────────────────── */
+.overview-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) { .overview-hero { grid-template-columns: 1fr; } }
+
+.latest-fcst-header {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 14px;
+}
+.latest-fcst-header .lfh-title {
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+}
+.latest-fcst-header .lfh-time {
+  font-family: var(--mono); font-size: 12px; color: var(--amber);
+}
+.latest-fcst-header .lfh-updated {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dimmer);
+}
+
+/* ── Condition icon strip ──────────────────────────────────────────────── */
+.fcst-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+@media (max-width: 700px) { .fcst-strip { grid-template-columns: repeat(4, 1fr); } }
+
+.fcst-day {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 8px;
+  text-align: center;
+  cursor: default;
+  transition: border-color 0.15s;
+}
+.fcst-day:hover { border-color: var(--amber-dim); }
+.fcst-day .fd-date {
+  font-family: var(--cond); font-size: 10px; letter-spacing: 1px;
+  color: var(--text-dimmer); text-transform: uppercase; margin-bottom: 4px;
+}
+.fcst-day .fd-lead {
+  font-family: var(--mono); font-size: 9px;
+  margin-bottom: 6px;
+}
+.fcst-day .fd-hi { font-family: var(--mono); font-size: 18px; color: var(--amber); }
+.fcst-day .fd-lo { font-family: var(--mono); font-size: 13px; color: var(--cyan); margin-top: 2px; }
+.fcst-day .fd-wind {
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 4px;
+}
+.fcst-day .fd-pop {
+  font-family: var(--mono); font-size: 10px; color: var(--purple); margin-top: 2px;
+}
+.fcst-day .fd-cond {
+  font-size: 10px; color: var(--text-dimmer); margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--sans);
+}
+
+/* ── GitHub URL input ──────────────────────────────────────────────────── */
+.gh-url-form {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.gh-input {
+  flex: 1; min-width: 200px;
+  background: var(--bg); border: 1px solid var(--border2);
+  color: var(--text); padding: 6px 12px; border-radius: var(--radius);
+  font-family: var(--mono); font-size: 12px;
+}
+.gh-input:focus { outline: none; border-color: var(--amber-dim); }
+.gh-input::placeholder { color: var(--text-dimmer); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-logo">
+    <span class="call">KLAS</span>
+    <span class="sub">VEF · Las Vegas</span>
+  </div>
+  <div class="header-divider"></div>
+  <div class="header-meta">
+    <span class="title">Forecast Verification</span>
+    <span class="coords">36°04'N · 115°09'W · ELEV 2181 ft</span>
+  </div>
+  <div class="header-status">
+    <div class="status-pill" id="pillFcst">
+      <span class="dot" id="dotFcst"></span>
+      <span id="lblFcst">Forecasts —</span>
+    </div>
+    <div class="status-pill" id="pillCli">
+      <span class="dot" id="dotCli"></span>
+      <span id="lblCli">CLI —</span>
+    </div>
+    <div class="status-pill" id="pillMetar">
+      <span class="dot" id="dotMetar"></span>
+      <span id="lblMetar">METAR —</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     DATA SOURCE BAR
+════════════════════════════════════════════════════════════════════════ -->
+<div class="datasource-bar">
+  <span class="label">Data source</span>
+
+  <!-- Live GitHub fetch -->
+  <div class="ds-group">
+    <span class="ds-name">GitHub</span>
+    <input class="gh-input" id="ghOwner" placeholder="username" style="width:130px">
+    <input class="gh-input" id="ghRepo"  placeholder="repo" style="width:200px">
+    <button class="btn btn-amber" id="btnFetchGH">Fetch Live</button>
+  </div>
+
+  <span class="ds-sep">|</span>
+
+  <!-- Manual file load -->
+  <div class="ds-group">
+    <span class="ds-name">Local</span>
+    <label class="file-label" id="lblFcstFile" for="fileFcst">📂 forecasts.csv</label>
+    <input type="file" id="fileFcst" accept=".csv">
+    <label class="file-label" id="lblCliFile" for="fileCli">📂 observations_cli.csv</label>
+    <input type="file" id="fileCli" accept=".csv">
+    <label class="file-label" id="lblMetarFile" for="fileMetar">📂 observations_metar.csv</label>
+    <input type="file" id="fileMetar" accept=".csv">
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     TAB NAVIGATION
+════════════════════════════════════════════════════════════════════════ -->
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="overview">
+    Overview
+  </button>
+  <button class="tab-btn" data-tab="verification">
+    Fcst vs CLI <span class="tab-count" id="cntVerify">—</span>
+  </button>
+  <button class="tab-btn" data-tab="leadtime">
+    Lead Time Analysis
+  </button>
+  <button class="tab-btn" data-tab="stats">
+    Bias &amp; Statistics
+  </button>
+  <button class="tab-btn" data-tab="metar">
+    Hourly Drill-Down
+  </button>
+  <button class="tab-btn" data-tab="events">
+    Event Tracker <span class="tab-count" id="cntEvents">—</span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PANELS
+════════════════════════════════════════════════════════════════════════ -->
+<main class="content">
+
+<!-- ── OVERVIEW ──────────────────────────────────────────────────────── -->
+<section class="panel active" id="panel-overview">
+
+  <!-- Stat tiles row -->
+  <div class="grid4" style="margin-bottom:16px;" id="overviewStats">
+    <div class="stat-tile">
+      <div class="stat-label">Forecast Snapshots</div>
+      <div class="stat-value" id="statSnapshots">—</div>
+      <div class="stat-sub" id="statSnapshotSub">load data to begin</div>
+    </div>
+    <div class="stat-tile cyan">
+      <div class="stat-label">CLI Observations</div>
+      <div class="stat-value" id="statCliDays">—</div>
+      <div class="stat-sub" id="statCliSub">—</div>
+    </div>
+    <div class="stat-tile green">
+      <div class="stat-label">METAR Records</div>
+      <div class="stat-value" id="statMetarRows">—</div>
+      <div class="stat-sub" id="statMetarSub">—</div>
+    </div>
+    <div class="stat-tile purple">
+      <div class="stat-label">Verification Pairs</div>
+      <div class="stat-value" id="statPairs">—</div>
+      <div class="stat-sub" id="statPairsSub">forecast × observed</div>
+    </div>
+  </div>
+
+  <!-- Hero: latest forecast + freshness -->
+  <div class="overview-hero">
+
+    <!-- Latest forecast snapshot -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="latest-fcst-header">
+        <span class="lfh-title">Latest Forecast</span>
+        <span class="lfh-time" id="latestFcstTime">—</span>
+        <span class="lfh-updated" id="latestFcstUpdated"></span>
+      </div>
+      <div id="fcstStrip">
+        <div class="empty-state">
+          <div class="empty-icon">◈</div>
+          <div class="empty-title">No Data Loaded</div>
+          <div class="empty-msg">Fetch from GitHub or load CSV files above</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data freshness -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div class="card" style="margin-bottom:0; flex:1;">
+        <div class="card-header">
+          <span class="card-title">Data Freshness</span>
+        </div>
+        <div class="freshness-grid" id="freshnessGrid">
+          <div class="freshness-item">
+            <span class="fi-label">Forecasts</span>
+            <span class="fi-file">forecasts.csv</span>
+            <span class="fi-stat" id="fiFcstRows">— rows</span>
+            <span class="fi-age" id="fiFcstAge">not loaded</span>
+          </div>
+          <div class="freshness-item">
+            <span class="fi-label">CLI Observations</span>
+            <span class="fi-file">observations_cli.csv</span>
+            <span class="fi-stat" id="fiCliRows">— rows</span>
+            <span class="fi-age" id="fiCliAge">not loaded</span>
+          </div>
+          <div class="freshness-item">
+            <span class="fi-label">METAR Observations</span>
+            <span class="fi-file">observations_metar.csv</span>
+            <span class="fi-stat" id="fiMetarRows">— rows</span>
+            <span class="fi-age" id="fiMetarAge">not loaded</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collection coverage -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <span class="card-title">Collection Coverage</span>
+        </div>
+        <div id="coverageContent">
+          <div class="empty-state" style="padding:20px;">
+            <div class="empty-msg">Load data to see coverage</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity log -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <span class="card-title">Activity Log</span>
+    </div>
+    <div class="log-box" id="activityLog">
+      <div class="log-line">
+        <span class="log-time">--:--:--</span>
+        <span class="log-msg">Ready. Fetch data from GitHub or load CSV files.</span>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ── VERIFICATION (placeholder) ────────────────────────────────────── -->
+<section class="panel" id="panel-verification">
+  <div class="empty-state">
+    <div class="empty-icon">◫</div>
+    <div class="empty-title">Coming in Piece 2</div>
+    <div class="empty-msg">Forecast vs CLI verification table with lead-time filtering</div>
+  </div>
+</section>
+
+<!-- ── LEAD TIME (placeholder) ───────────────────────────────────────── -->
+<section class="panel" id="panel-leadtime">
+  <div class="empty-state">
+    <div class="empty-icon">◈</div>
+    <div class="empty-title">Coming in Piece 3</div>
+    <div class="empty-msg">Skill degradation curves and lead-time heatmap</div>
+  </div>
+</section>
+
+<!-- ── STATS (placeholder) ───────────────────────────────────────────── -->
+<section class="panel" id="panel-stats">
+  <div class="empty-state">
+    <div class="empty-icon">◉</div>
+    <div class="empty-title">Coming in Piece 4</div>
+    <div class="empty-msg">Bias analysis, RMSE, error distributions</div>
+  </div>
+</section>
+
+<!-- ── METAR (placeholder) ───────────────────────────────────────────── -->
+<section class="panel" id="panel-metar">
+  <div class="empty-state">
+    <div class="empty-icon">◐</div>
+    <div class="empty-title">Coming in Piece 5</div>
+    <div class="empty-msg">Hourly METAR drill-down with forecast overlay</div>
+  </div>
+</section>
+
+<!-- ── EVENTS (placeholder) ──────────────────────────────────────────── -->
+<section class="panel" id="panel-events">
+  <div class="empty-state">
+    <div class="empty-icon">◑</div>
+    <div class="empty-title">Coming in Piece 6</div>
+    <div class="empty-msg">Automatic event flagging and anomaly detection</div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const STATE = {
+  forecasts: [],   // rows from forecasts.csv
+  cli:       [],   // rows from observations_cli.csv
+  metar:     [],   // rows from observations_metar.csv
+};
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function now() {
+  return new Date().toTimeString().slice(0,8);
+}
+
+function log(msg, type='info') {
+  const box = $('activityLog');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${now()}</span><span class="log-msg ${type}">${msg}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setStatus(which, state, label) {
+  // state: 'ok' | 'warn' | 'err' | 'loading' | 'idle'
+  const dot = $(`dot${which}`);
+  const lbl = $(`lbl${which}`);
+  dot.className = 'dot';
+  if (state === 'ok')      { dot.classList.add('ok'); }
+  if (state === 'warn')    { dot.classList.add('warn'); }
+  if (state === 'err')     { dot.classList.add('err'); }
+  if (state === 'loading') { dot.classList.add('warn', 'pulse'); }
+  if (lbl) lbl.textContent = label;
+}
+
+function fmtDate(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  if (isNaN(d)) return isoStr.slice(0,10);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function ageLabel(isoStr) {
+  if (!isoStr) return { text: 'unknown', cls: '' };
+  const ms = Date.now() - new Date(isoStr);
+  const h = ms / 3600000;
+  if (h < 8)  return { text: `${Math.round(h * 60)}m ago`, cls: 'fresh' };
+  if (h < 24) return { text: `${Math.round(h)}h ago`,      cls: 'fresh' };
+  if (h < 72) return { text: `${Math.round(h/24)}d ago`,   cls: 'stale' };
+  return { text: `${Math.round(h/24)}d ago`, cls: 'old' };
+}
+
+function parseCSV(text) {
+  const result = Papa.parse(text.trim(), {
+    header: true,
+    skipEmptyLines: true,
+    dynamicTyping: false,
+  });
+  return result.data;
+}
+
+// ── Tab navigation ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $(`panel-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+// ── CSV loading ───────────────────────────────────────────────────────────────
+function ingestForecasts(rows) {
+  STATE.forecasts = rows;
+  log(`Loaded ${rows.length} forecast rows`, 'ok');
+
+  // Unique snapshots = unique forecast_updated_at values
+  const snapshots = new Set(rows.map(r => r.forecast_updated_at)).size;
+  $('statSnapshots').textContent = snapshots;
+  const dateRange = getDateRange(rows, 'forecast_date');
+  $('statSnapshotSub').textContent = dateRange;
+  $('fiFcstRows').textContent = `${rows.length} rows · ${snapshots} snapshots`;
+
+  // Freshness from most recent retrieved_at
+  const latest = rows.map(r => r.retrieved_at).filter(Boolean).sort().pop();
+  const age = ageLabel(latest);
+  const ageEl = $('fiFcstAge');
+  ageEl.textContent = latest ? `Last: ${age.text}` : 'unknown';
+  ageEl.className = `fi-age ${age.cls}`;
+  setStatus('Fcst', age.cls === 'old' ? 'warn' : 'ok', `Fcst · ${snapshots} snaps`);
+
+  renderForecastStrip();
+  updatePairsCount();
+  updateCoverage();
+}
+
+function ingestCLI(rows) {
+  STATE.cli = rows;
+  log(`Loaded ${rows.length} CLI observation rows`, 'ok');
+  const days = new Set(rows.map(r => r.obs_date)).size;
+  $('statCliDays').textContent = days;
+  const dateRange = getDateRange(rows, 'obs_date');
+  $('statCliSub').textContent = dateRange;
+  $('fiCliRows').textContent = `${rows.length} rows · ${days} days`;
+
+  const latest = rows.map(r => r.retrieved_at).filter(Boolean).sort().pop();
+  const age = ageLabel(latest);
+  const ageEl = $('fiCliAge');
+  ageEl.textContent = latest ? `Last: ${age.text}` : 'unknown';
+  ageEl.className = `fi-age ${age.cls}`;
+  setStatus('Cli', age.cls === 'old' ? 'warn' : 'ok', `CLI · ${days} days`);
+
+  updatePairsCount();
+  updateCoverage();
+}
+
+function ingestMETAR(rows) {
+  STATE.metar = rows;
+  log(`Loaded ${rows.length} METAR observation rows`, 'ok');
+  const days = new Set(rows.map(r => r.obs_date_local)).size;
+  $('statMetarRows').textContent = rows.length.toLocaleString();
+  const dateRange = getDateRange(rows, 'obs_date_local');
+  $('statMetarSub').textContent = dateRange;
+  $('fiMetarRows').textContent = `${rows.length} rows · ${days} days`;
+
+  const latest = rows.map(r => r.retrieved_at).filter(Boolean).sort().pop();
+  const age = ageLabel(latest);
+  const ageEl = $('fiMetarAge');
+  ageEl.textContent = latest ? `Last: ${age.text}` : 'unknown';
+  ageEl.className = `fi-age ${age.cls}`;
+  setStatus('Metar', age.cls === 'old' ? 'warn' : 'ok', `METAR · ${rows.length.toLocaleString()}`);
+
+  updateCoverage();
+}
+
+function getDateRange(rows, dateField) {
+  const dates = rows.map(r => r[dateField]).filter(Boolean).sort();
+  if (!dates.length) return '—';
+  if (dates[0] === dates[dates.length-1]) return dates[0];
+  return `${dates[0]} → ${dates[dates.length-1]}`;
+}
+
+function updatePairsCount() {
+  if (!STATE.forecasts.length || !STATE.cli.length) return;
+  const cliDates = new Set(STATE.cli.map(r => r.obs_date));
+  const pairs = STATE.forecasts.filter(r => cliDates.has(r.forecast_date)).length;
+  $('statPairs').textContent = pairs.toLocaleString();
+  $('statPairsSub').textContent = `across ${new Set(STATE.forecasts.filter(r => cliDates.has(r.forecast_date)).map(r => r.forecast_date)).size} dates`;
+  $('cntVerify').textContent = pairs.toLocaleString();
+}
+
+function updateCoverage() {
+  const fcstDates  = new Set(STATE.forecasts.map(r => r.forecast_date).filter(Boolean));
+  const cliDates   = new Set(STATE.cli.map(r => r.obs_date).filter(Boolean));
+  const metarDates = new Set(STATE.metar.map(r => r.obs_date_local).filter(Boolean));
+  const allDates   = new Set([...fcstDates, ...cliDates, ...metarDates]);
+
+  if (!allDates.size) return;
+
+  const sorted = [...allDates].sort();
+  const overlap = sorted.filter(d => fcstDates.has(d) && cliDates.has(d));
+
+  const html = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--mono); font-size:12px;">
+      <div>
+        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Date Range</div>
+        <div style="color:var(--text);">${sorted[0]} → ${sorted[sorted.length-1]}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Verifiable Days</div>
+        <div style="color:var(--green);">${overlap.length} of ${cliDates.size} CLI days have forecasts</div>
+      </div>
+      <div>
+        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Forecast Dates</div>
+        <div style="color:var(--amber);">${fcstDates.size} unique dates</div>
+      </div>
+      <div>
+        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">METAR Days</div>
+        <div style="color:var(--cyan);">${metarDates.size} days with hourly obs</div>
+      </div>
+    </div>
+  `;
+  $('coverageContent').innerHTML = html;
+}
+
+// ── Forecast strip (latest snapshot) ─────────────────────────────────────────
+function renderForecastStrip() {
+  if (!STATE.forecasts.length) return;
+
+  // Find the most recent forecast_updated_at
+  const latestUpdate = STATE.forecasts
+    .map(r => r.forecast_updated_at).filter(Boolean).sort().pop();
+
+  // Get all rows for that snapshot
+  const rows = STATE.forecasts.filter(r => r.forecast_updated_at === latestUpdate);
+  if (!rows.length) return;
+
+  // retrieved_at of this snapshot
+  const retrieved = rows[0].retrieved_at || '';
+  $('latestFcstTime').textContent = latestUpdate ? latestUpdate.slice(0,16).replace('T',' ') + ' UTC' : '—';
+  if (retrieved) {
+    const age = ageLabel(retrieved);
+    $('latestFcstUpdated').textContent = `fetched ${age.text}`;
+  }
+
+  const dayRows = rows.slice().sort((a,b) => (a.forecast_date||'').localeCompare(b.forecast_date||''));
+
+  const leadColors = ['lead-0','lead-1','lead-2','lead-3','lead-4','lead-5','lead-6','lead-7'];
+
+  const strip = dayRows.map(r => {
+    const lead = parseInt(r.lead_days) || 0;
+    const hiF  = r.high_temp_f  ? `${r.high_temp_f}°` : '—';
+    const loF  = r.low_temp_f   ? `${r.low_temp_f}°` : '—';
+    const wind = r.max_wind_speed_mph ? `${parseFloat(r.max_wind_speed_mph).toFixed(0)} mph` : '—';
+    const pop  = r.precip_prob_pct !== '' ? `${r.precip_prob_pct}%` : '';
+    const dateShort = r.forecast_date ? r.forecast_date.slice(5) : '—'; // MM-DD
+    const dow = r.forecast_date ? new Date(r.forecast_date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short'}) : '';
+
+    return `<div class="fcst-day">
+      <div class="fd-date">${dow} ${dateShort}</div>
+      <div class="fd-lead"><span class="lead-badge ${leadColors[Math.min(lead,7)]}">D${lead}</span></div>
+      <div class="fd-hi">${hiF}</div>
+      <div class="fd-lo">${loF}</div>
+      <div class="fd-wind">${wind}</div>
+      ${pop ? `<div class="fd-pop">PoP ${pop}</div>` : ''}
+      <div class="fd-cond">${r.day_short_forecast || ''}</div>
+    </div>`;
+  }).join('');
+
+  $('fcstStrip').innerHTML = `<div class="fcst-strip">${strip}</div>`;
+}
+
+// ── GitHub live fetch ─────────────────────────────────────────────────────────
+async function fetchFromGitHub() {
+  const owner = $('ghOwner').value.trim();
+  const repo  = $('ghRepo').value.trim();
+
+  if (!owner || !repo) {
+    log('Enter GitHub username and repo name first', 'warn');
+    return;
+  }
+
+  const base = `https://raw.githubusercontent.com/${owner}/${repo}/main/data`;
+  const files = [
+    { url: `${base}/forecasts.csv`,         ingest: ingestForecasts, name: 'forecasts' },
+    { url: `${base}/observations_cli.csv`,   ingest: ingestCLI,       name: 'CLI' },
+    { url: `${base}/observations_metar.csv`, ingest: ingestMETAR,     name: 'METAR' },
+  ];
+
+  const btn = $('btnFetchGH');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Fetching…';
+
+  log(`Fetching from github.com/${owner}/${repo}…`);
+
+  for (const f of files) {
+    try {
+      log(`Fetching ${f.name}…`);
+      const resp = await fetch(f.url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const rows = parseCSV(text);
+      f.ingest(rows);
+    } catch(e) {
+      log(`Failed to fetch ${f.name}: ${e.message}`, 'err');
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Fetch Live';
+  log('GitHub fetch complete', 'ok');
+
+  // Save owner/repo to localStorage for next time
+  try {
+    localStorage.setItem('klas_gh_owner', owner);
+    localStorage.setItem('klas_gh_repo',  repo);
+  } catch(e) {}
+}
+
+$('btnFetchGH').addEventListener('click', fetchFromGitHub);
+
+// ── File picker handlers ──────────────────────────────────────────────────────
+function wireFilePicker(inputId, labelId, ingestFn, name) {
+  const input = $(inputId);
+  const label = $(labelId);
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = parseCSV(e.target.result);
+      ingestFn(rows);
+      label.textContent = `✓ ${file.name}`;
+      label.classList.add('loaded');
+      log(`Loaded ${name} from local file: ${file.name}`, 'ok');
+    };
+    reader.readAsText(file);
+  });
+}
+
+wireFilePicker('fileFcst',  'lblFcstFile',  ingestForecasts, 'forecasts');
+wireFilePicker('fileCli',   'lblCliFile',   ingestCLI,       'CLI observations');
+wireFilePicker('fileMetar', 'lblMetarFile', ingestMETAR,     'METAR observations');
+
+// ── Restore saved GitHub settings ─────────────────────────────────────────────
+try {
+  const savedOwner = localStorage.getItem('klas_gh_owner');
+  const savedRepo  = localStorage.getItem('klas_gh_repo');
+  if (savedOwner) $('ghOwner').value = savedOwner;
+  if (savedRepo)  $('ghRepo').value  = savedRepo;
+} catch(e) {}
+</script>
+</body>
+</html>
