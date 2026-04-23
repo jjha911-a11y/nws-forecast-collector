@@ -2126,3 +2126,543 @@ window.applyFilters = function() {
   if (V.pairs.length) runLeadTimeAnalysis();
 };
 </script>
+
+<style>
+/* ── Piece 4 — Bias & Statistics styles ───────────────────────────────── */
+.stats-grid-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) { .stats-grid-top { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px)  { .stats-grid-top { grid-template-columns: 1fr; } }
+
+/* Variable breakdown table */
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.breakdown-table th {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); padding: 9px 12px;
+  border-bottom: 2px solid var(--border2);
+  background: var(--surface); text-align: right;
+  white-space: nowrap;
+}
+.breakdown-table th:first-child { text-align: left; }
+.breakdown-table td {
+  font-family: var(--mono); font-size: 12px;
+  padding: 8px 12px; border-bottom: 1px solid rgba(30,46,61,0.4);
+  text-align: right;
+}
+.breakdown-table td:first-child {
+  text-align: left; color: var(--text-dim);
+  font-family: var(--cond); font-size: 11px;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.breakdown-table tr:hover td { background: var(--surface2); }
+.breakdown-table tr:last-child td { border-bottom: none; }
+
+/* Bias bar visual */
+.bias-bar-wrap {
+  display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+}
+.bias-bar-track {
+  width: 80px; height: 8px; background: var(--bg3);
+  border-radius: 4px; position: relative; overflow: visible;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+}
+.bias-bar-fill {
+  position: absolute; top: 0; height: 100%; border-radius: 4px;
+}
+.bias-center-line {
+  position: absolute; left: 50%; top: -2px; bottom: -2px;
+  width: 1px; background: var(--border2);
+}
+
+/* RMSE gauge circles */
+.gauge-row {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  padding: 10px 0;
+}
+.gauge-item {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.gauge-label {
+  font-family: var(--cond); font-size: 10px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.gauge-value {
+  font-family: var(--mono); font-size: 16px;
+}
+
+/* Histogram bars */
+.hist-wrap { display: flex; align-items: flex-end; gap: 2px; height: 80px; padding: 4px 0; }
+.hist-bar {
+  flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
+  transition: filter 0.15s;
+}
+.hist-bar:hover { filter: brightness(1.4); }
+.hist-labels { display: flex; justify-content: space-between; margin-top: 2px; }
+.hist-label { font-family: var(--mono); font-size: 9px; color: var(--text-dimmer); }
+
+/* Precip verification 2×2 */
+.precip-matrix {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  max-width: 360px; margin: 0 auto;
+}
+.pm-cell {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; text-align: center;
+}
+.pm-cell .pm-count {
+  font-family: var(--mono); font-size: 28px; line-height: 1;
+}
+.pm-cell .pm-label {
+  font-family: var(--cond); font-size: 10px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-dim); margin-top: 6px;
+}
+.pm-cell .pm-sub { font-family: var(--mono); font-size: 10px; color: var(--text-dimmer); }
+.pm-hit    { border-color: var(--green-dim); }
+.pm-miss   { border-color: var(--red-dim); }
+.pm-fa     { border-color: var(--amber-dim); }
+.pm-cn     { border-color: var(--border); }
+.pm-hit .pm-count  { color: var(--green); }
+.pm-miss .pm-count { color: var(--red); }
+.pm-fa .pm-count   { color: var(--amber); }
+.pm-cn .pm-count   { color: var(--text-dim); }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIECE 4 — BIAS & STATISTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('panel-stats').innerHTML = `
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <div class="filter-group">
+      <span class="filter-label">Lead Time</span>
+      <select class="filter-select" id="stLead">
+        <option value="all">All Leads</option>
+        <option value="best">Best (shortest)</option>
+        <option value="0">D0</option><option value="1">D1</option>
+        <option value="2">D2</option><option value="3">D3</option>
+        <option value="4">D4</option><option value="5">D5</option>
+        <option value="6">D6</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Date From</span>
+      <input type="date" class="filter-select" id="stDateFrom">
+      <span class="filter-label">To</span>
+      <input type="date" class="filter-select" id="stDateTo">
+    </div>
+    <button class="btn btn-amber" id="btnRunStats">Refresh</button>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="stInfo"></span>
+  </div>
+
+  <!-- Top row: 3 charts -->
+  <div class="stats-grid-top">
+
+    <!-- Error distributions -->
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">High Temp Error Distribution</span>
+      </div>
+      <div class="cc-sub">Forecast − Observed °F · positive = warm bias</div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="stHistHi"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">Low Temp Error Distribution</span>
+      </div>
+      <div class="cc-sub">Forecast − Observed °F</div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="stHistLo"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">Wind Speed Error Distribution</span>
+      </div>
+      <div class="cc-sub">Forecast − Observed mph</div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="stHistWind"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- Variable breakdown table -->
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="cc-header">
+      <span class="cc-title">Variable Breakdown</span>
+      <span class="cc-sub" style="margin-left:8px;">Bias · MAE · RMSE · SD — all units native to each variable</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="breakdown-table" id="stBreakdown">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>N</th>
+            <th>Bias</th>
+            <th>Bias Direction</th>
+            <th>MAE</th>
+            <th>RMSE</th>
+            <th>Std Dev</th>
+            <th>Min Err</th>
+            <th>Max Err</th>
+          </tr>
+        </thead>
+        <tbody id="stBreakdownBody">
+          <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-dimmer);">Run analysis to populate</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bottom row: precip verification + sky cover dist -->
+  <div class="grid2">
+
+    <!-- Precipitation verification matrix -->
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">Precipitation Verification</span>
+      </div>
+      <div class="cc-sub" style="margin-bottom:14px;">PoP ≥ 30% = forecast "yes" · Obs > 0.005" = observed "yes"</div>
+      <div class="precip-matrix" id="stPrecipMatrix">
+        <div class="pm-cell pm-hit"><div class="pm-count">—</div><div class="pm-label">Hit</div><div class="pm-sub">fcst yes · obs yes</div></div>
+        <div class="pm-cell pm-fa"> <div class="pm-count">—</div><div class="pm-label">False Alarm</div><div class="pm-sub">fcst yes · obs no</div></div>
+        <div class="pm-cell pm-miss"><div class="pm-count">—</div><div class="pm-label">Miss</div><div class="pm-sub">fcst no · obs yes</div></div>
+        <div class="pm-cell pm-cn"> <div class="pm-count">—</div><div class="pm-label">Correct Neg</div><div class="pm-sub">fcst no · obs no</div></div>
+      </div>
+      <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="stPrecipScores"></div>
+    </div>
+
+    <!-- Sky cover scatter / distribution -->
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">Sky Cover — Forecast vs Observed</span>
+      </div>
+      <div class="cc-sub">Each point = one forecast×CLI pair</div>
+      <div class="chart-wrap" style="height:260px;"><canvas id="stSkyScatter"></canvas></div>
+    </div>
+
+  </div>
+`;
+
+// ── Chart instances ────────────────────────────────────────────────────────
+let stHistHi = null, stHistLo = null, stHistWind = null, stSkyScatter = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function stddev(arr) {
+  if (!arr.length) return null;
+  const m = arr.reduce((a,b)=>a+b,0)/arr.length;
+  return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length);
+}
+function rmse2(arr) {
+  if (!arr.length) return null;
+  return Math.sqrt(arr.reduce((a,b)=>a+b*b,0)/arr.length);
+}
+
+// ── Filter pairs for this tab ──────────────────────────────────────────────
+function getStatPairs() {
+  const leadSel = document.getElementById('stLead').value;
+  const from    = document.getElementById('stDateFrom').value;
+  const to      = document.getElementById('stDateTo').value;
+
+  let pairs = V.pairs.slice();
+  if (from) pairs = pairs.filter(p => p.date >= from);
+  if (to)   pairs = pairs.filter(p => p.date <= to);
+
+  if (leadSel === 'best') {
+    const byDate = {};
+    for (const p of pairs) {
+      if (!byDate[p.date] || (p.lead !== null && p.lead < (byDate[p.date].lead ?? 999)))
+        byDate[p.date] = p;
+    }
+    pairs = Object.values(byDate);
+  } else if (leadSel !== 'all') {
+    const ld = parseInt(leadSel);
+    pairs = pairs.filter(p => p.lead === ld);
+  }
+  return pairs;
+}
+
+// ── Build histogram data ───────────────────────────────────────────────────
+function buildHistogram(errors, binWidth) {
+  if (!errors.length) return { labels: [], counts: [], colors: [] };
+  const min = Math.floor(Math.min(...errors) / binWidth) * binWidth;
+  const max = Math.ceil( Math.max(...errors) / binWidth) * binWidth;
+  const labels = [], counts = [], colors = [];
+  for (let b = min; b <= max; b += binWidth) {
+    labels.push(b > 0 ? '+'+b : String(b));
+    const count = errors.filter(e => e >= b && e < b + binWidth).length;
+    counts.push(count);
+    // Color: negative = cyan (cool), near zero = green, positive = red (warm)
+    if (b < -binWidth/2)     colors.push('rgba(46,196,232,0.6)');
+    else if (b > binWidth/2) colors.push('rgba(232,64,64,0.6)');
+    else                      colors.push('rgba(61,220,132,0.7)');
+  }
+  return { labels, counts, colors };
+}
+
+function makeHistChart(canvasId, errors, binWidth, unit, existing) {
+  const { labels, counts, colors } = buildHistogram(errors, binWidth);
+  if (existing) existing.destroy();
+  return new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: counts,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.6','0.9').replace('0.7','1')),
+        borderWidth: 1,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: ctx => ` ${ctx.parsed.y} observations`,
+          title: ctx => `Error: ${ctx[0].label}${unit}`,
+        }}
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: CHART_DEFAULTS.tick, font: { size: 10 } } },
+        y: {
+          grid: { color: CHART_DEFAULTS.grid },
+          ticks: { color: CHART_DEFAULTS.tick, precision: 0 },
+          title: { display: true, text: 'Count', color: CHART_DEFAULTS.tick },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+}
+
+// ── Variable breakdown table ───────────────────────────────────────────────
+const ST_VARS = [
+  { key: 'hi',   label: 'High Temp',   unit: '°F',  errFn: p => p.errHi,  warnMAE: 3, color: '#e84040' },
+  { key: 'lo',   label: 'Low Temp',    unit: '°F',  errFn: p => p.errLo,  warnMAE: 3, color: '#2ec4e8' },
+  { key: 'wind', label: 'Max Wind',    unit: ' mph', errFn: p => p.errWnd, warnMAE: 5, color: '#e8a020' },
+  { key: 'gust', label: 'Peak Gust',   unit: ' mph',
+    errFn: p => (p.fcstGust!==null&&p.obsGust!==null) ? p.fcstGust-p.obsGust : null,
+    warnMAE: 6, color: '#3ddc84' },
+  { key: 'sky',  label: 'Sky Cover',   unit: '%',   errFn: p => p.errSky, warnMAE: 20, color: '#9b6dff' },
+];
+
+function renderBreakdown(pairs) {
+  const MAX_BIAS_DISPLAY = 10; // °F or mph for bar scaling
+  let html = '';
+  for (const v of ST_VARS) {
+    const errors = pairs.map(p => v.errFn(p)).filter(e => e !== null);
+    if (!errors.length) {
+      html += `<tr><td><span style="color:${v.color};margin-right:6px;">▶</span>${v.label}</td>
+        <td>0</td><td colspan="7" style="color:var(--text-dimmer);">No data</td></tr>`;
+      continue;
+    }
+    const bias  = errors.reduce((a,b)=>a+b,0)/errors.length;
+    const maeV  = errors.map(Math.abs).reduce((a,b)=>a+b,0)/errors.length;
+    const rmseV = rmse2(errors);
+    const sdV   = stddev(errors);
+    const minE  = Math.min(...errors);
+    const maxE  = Math.max(...errors);
+
+    // Bias direction bar
+    const pct    = Math.min(Math.abs(bias) / MAX_BIAS_DISPLAY * 50, 50); // % of half-track
+    const isWarm = bias > 0;
+    const barStyle = isWarm
+      ? `left:50%;width:${pct}%;background:rgba(232,64,64,0.6);`
+      : `right:50%;width:${pct}%;background:rgba(46,196,232,0.6);`;
+
+    const biasStr  = (bias > 0 ? '+' : '') + bias.toFixed(2) + v.unit;
+    const biasCol  = Math.abs(bias) < 0.5 ? 'var(--green)' : bias > 0 ? 'var(--red)' : 'var(--cyan)';
+    const maeCol   = maeV < v.warnMAE ? 'var(--green)' : maeV < v.warnMAE*2 ? 'var(--amber)' : 'var(--red)';
+
+    html += `<tr>
+      <td><span style="color:${v.color};margin-right:6px;">▶</span>${v.label}</td>
+      <td>${errors.length}</td>
+      <td style="color:${biasCol};font-weight:600;">${biasStr}</td>
+      <td>
+        <div class="bias-bar-wrap">
+          <div class="bias-bar-track">
+            <div class="bias-center-line"></div>
+            <div class="bias-bar-fill" style="${barStyle}"></div>
+          </div>
+          <span style="font-size:10px;color:var(--text-dimmer);min-width:30px;">
+            ${isWarm ? 'warm' : Math.abs(bias) < 0.5 ? 'cal' : 'cool'}
+          </span>
+        </div>
+      </td>
+      <td style="color:${maeCol};font-weight:600;">${maeV.toFixed(2)}${v.unit}</td>
+      <td style="color:var(--amber);">${rmseV !== null ? rmseV.toFixed(2)+v.unit : '—'}</td>
+      <td>${sdV !== null ? sdV.toFixed(2)+v.unit : '—'}</td>
+      <td style="color:var(--cyan);">${(minE>0?'+':'')+minE.toFixed(1)+v.unit}</td>
+      <td style="color:var(--red);">${(maxE>0?'+':'')+maxE.toFixed(1)+v.unit}</td>
+    </tr>`;
+  }
+  document.getElementById('stBreakdownBody').innerHTML = html ||
+    '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-dimmer);">No data</td></tr>';
+}
+
+// ── Precipitation verification ─────────────────────────────────────────────
+function renderPrecipVerification(pairs) {
+  const POP_THRESHOLD   = 30;  // % — forecast "yes" if PoP >= this
+  const PRECIP_THRESHOLD = 0.005; // inches — observed "yes" if >= this
+
+  let hits = 0, misses = 0, falseAlarms = 0, correctNegs = 0;
+
+  for (const p of pairs) {
+    if (p.fcstPop === null || p.obsPrecip === null) continue;
+    const fcstYes = p.fcstPop >= POP_THRESHOLD;
+    const obsYes  = p.obsPrecip >= PRECIP_THRESHOLD || p.isTrace;
+    if (fcstYes && obsYes)   hits++;
+    else if (!fcstYes && obsYes) misses++;
+    else if (fcstYes && !obsYes) falseAlarms++;
+    else correctNegs++;
+  }
+
+  const total = hits + misses + falseAlarms + correctNegs;
+  const pss   = total > 0 ? ((hits + correctNegs) / total * 100).toFixed(0) : null;
+  const pod   = (hits + misses) > 0 ? (hits / (hits + misses) * 100).toFixed(0) : null;
+  const far   = (hits + falseAlarms) > 0 ? (falseAlarms / (hits + falseAlarms) * 100).toFixed(0) : null;
+
+  // Update matrix
+  const cells = document.querySelectorAll('#stPrecipMatrix .pm-count');
+  if (cells.length === 4) {
+    cells[0].textContent = hits;
+    cells[1].textContent = falseAlarms;
+    cells[2].textContent = misses;
+    cells[3].textContent = correctNegs;
+  }
+
+  // Scores
+  document.getElementById('stPrecipScores').innerHTML = `
+    <div class="metric-tile">
+      <div class="mt-label">Pct Correct</div>
+      <div class="mt-value ${pss && pss>=70?'neutral':'amber-text'}">${pss ?? '—'}%</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Prob of Detection</div>
+      <div class="mt-value ${pod && pod>=70?'neutral':'amber-text'}">${pod ?? '—'}%</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">False Alarm Rate</div>
+      <div class="mt-value ${far && far<=30?'neutral':'warm'}">${far ?? '—'}%</div>
+    </div>
+  `;
+}
+
+// ── Sky cover scatter ──────────────────────────────────────────────────────
+function renderSkyScatter(pairs) {
+  const pts = pairs
+    .filter(p => p.fcstSky !== null && p.obsSky !== null)
+    .map(p => ({ x: p.fcstSky, y: p.obsSky, lead: p.lead ?? 0 }));
+
+  const leadColors = ['#3ddc84','#2ec4e8','#e8a020','#e8a020',
+                      '#9b6dff','#9b6dff','#e84040','#e84040'];
+
+  if (stSkyScatter) stSkyScatter.destroy();
+  stSkyScatter = new Chart(document.getElementById('stSkyScatter'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Fcst vs Obs Sky Cover',
+        data: pts,
+        backgroundColor: pts.map(p => leadColors[Math.min(p.lead,7)] + '88'),
+        borderColor:     pts.map(p => leadColors[Math.min(p.lead,7)]),
+        pointRadius: 5, pointHoverRadius: 7, borderWidth: 1,
+      },
+      // Perfect forecast diagonal
+      {
+        label: 'Perfect',
+        data: [{x:0,y:0},{x:100,y:100}],
+        type: 'line',
+        borderColor: 'rgba(232,160,32,0.3)',
+        borderWidth: 1.5,
+        borderDash: [4,4],
+        pointRadius: 0,
+        fill: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: ctx => {
+            if (ctx.datasetIndex === 1) return null;
+            const p = pts[ctx.dataIndex];
+            return ` Fcst ${p.x}% → Obs ${p.y}% (D${p.lead})`;
+          }
+        }}
+      },
+      scales: {
+        x: {
+          grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick },
+          title: { display: true, text: 'Forecast Sky Cover %', color: CHART_DEFAULTS.tick },
+          min: 0, max: 100,
+        },
+        y: {
+          grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick },
+          title: { display: true, text: 'Observed Sky Cover %', color: CHART_DEFAULTS.tick },
+          min: 0, max: 100,
+        }
+      }
+    }
+  });
+}
+
+// ── Main run function ──────────────────────────────────────────────────────
+function runStatsAnalysis() {
+  if (!V.pairs.length) return;
+
+  const pairs = getStatPairs();
+  document.getElementById('stInfo').textContent =
+    `${pairs.length} pairs · ${new Set(pairs.map(p=>p.date)).size} dates`;
+
+  // Error arrays
+  const hiErrs   = pairs.map(p=>p.errHi).filter(e=>e!==null);
+  const loErrs   = pairs.map(p=>p.errLo).filter(e=>e!==null);
+  const wndErrs  = pairs.map(p=>p.errWnd).filter(e=>e!==null);
+
+  // Histograms
+  stHistHi   = makeHistChart('stHistHi',   hiErrs,  1, '°F',  stHistHi);
+  stHistLo   = makeHistChart('stHistLo',   loErrs,  1, '°F',  stHistLo);
+  stHistWind = makeHistChart('stHistWind', wndErrs, 2, ' mph', stHistWind);
+
+  // Breakdown table
+  renderBreakdown(pairs);
+
+  // Precip verification
+  renderPrecipVerification(pairs);
+
+  // Sky scatter
+  renderSkyScatter(pairs);
+}
+
+// ── Wire controls ─────────────────────────────────────────────────────────
+document.getElementById('btnRunStats').addEventListener('click', () => {
+  if (!V.pairs.length) { log('Run verification first (Fcst vs CLI tab)', 'warn'); return; }
+  runStatsAnalysis();
+});
+
+['stLead','stDateFrom','stDateTo'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => { if (V.pairs.length) runStatsAnalysis(); });
+});
+
+// ── Auto-run when pairs rebuild ────────────────────────────────────────────
+const _origApplyFiltersP4 = window.applyFilters;
+window.applyFilters = function() {
+  _origApplyFiltersP4();
+  // Sync date range
+  const from = document.getElementById('vDateFrom')?.value;
+  const to   = document.getElementById('vDateTo')?.value;
+  if (from) { const el=document.getElementById('stDateFrom'); if(el) el.value=from; }
+  if (to)   { const el=document.getElementById('stDateTo');   if(el) el.value=to; }
+  if (V.pairs.length) runStatsAnalysis();
+};
+</script>
