@@ -1019,3 +1019,577 @@ try {
 </script>
 </body>
 </html>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PIECE 2 — FORECAST vs CLI VERIFICATION
+     Appended styles + full panel replacement via JS init
+════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Verification tab styles ──────────────────────────────────────────── */
+.filter-bar {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-label {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  white-space: nowrap;
+}
+.filter-select {
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); padding: 5px 10px; border-radius: var(--radius);
+  font-family: var(--mono); font-size: 12px; cursor: pointer;
+}
+.filter-select:focus { outline: none; border-color: var(--amber-dim); }
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (max-width:1200px) { .metric-row { grid-template-columns: repeat(3,1fr); } }
+@media (max-width:700px)  { .metric-row { grid-template-columns: repeat(2,1fr); } }
+
+.metric-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.metric-tile .mt-label {
+  font-family: var(--cond); font-size: 9px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.metric-tile .mt-value {
+  font-family: var(--mono); font-size: 20px; line-height: 1;
+}
+.metric-tile .mt-sub {
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  margin-top: 3px;
+}
+.warm { color: var(--red); }
+.cool { color: var(--cyan); }
+.neutral { color: var(--green); }
+.amber-text { color: var(--amber); }
+
+.verify-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+}
+.verify-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; min-width: 900px;
+}
+.verify-table th {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); padding: 10px 10px 9px;
+  border-bottom: 2px solid var(--border2);
+  white-space: nowrap; cursor: pointer;
+  background: var(--surface);
+  user-select: none;
+}
+.verify-table th:hover { color: var(--amber); }
+.verify-table th.sorted { color: var(--amber); }
+.verify-table th.num { text-align: right; }
+.verify-table td {
+  font-family: var(--mono); font-size: 12px;
+  padding: 7px 10px; border-bottom: 1px solid rgba(30,46,61,0.5);
+}
+.verify-table td.num { text-align: right; }
+.verify-table tr:hover td { background: var(--surface2); }
+.verify-table tr:last-child td { border-bottom: none; }
+
+/* Error color cells */
+.err-good  { color: var(--green); }
+.err-ok    { color: var(--text); }
+.err-warn  { color: var(--amber); }
+.err-bad   { color: var(--red); }
+.err-cell  { font-weight: 600; }
+
+/* Sort arrows */
+.sort-arrow { opacity: 0.3; font-size: 10px; margin-left: 3px; }
+.sorted .sort-arrow { opacity: 1; }
+
+/* Pagination */
+.pagination {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 0; justify-content: center;
+}
+.page-btn {
+  font-family: var(--mono); font-size: 12px;
+  padding: 4px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s;
+}
+.page-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.page-btn.active { background: var(--amber-glow); color: var(--amber); border-color: var(--amber-dim); }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.page-info { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIECE 2 — VERIFICATION ENGINE + TAB
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Replace verification panel with full UI ───────────────────────────────
+document.getElementById('panel-verification').innerHTML = `
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <span class="filter-label">Lead Time</span>
+      <select class="filter-select" id="vLead">
+        <option value="all">All Leads</option>
+        <option value="best">Best (shortest)</option>
+        <option value="0">D0 — Same Day</option>
+        <option value="1">D1</option>
+        <option value="2">D2</option>
+        <option value="3">D3</option>
+        <option value="4">D4</option>
+        <option value="5">D5</option>
+        <option value="6">D6</option>
+        <option value="7">D7</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Date From</span>
+      <input type="date" class="filter-select" id="vDateFrom">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Date To</span>
+      <input type="date" class="filter-select" id="vDateTo">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Sort By</span>
+      <select class="filter-select" id="vSort">
+        <option value="date_asc">Date ↑</option>
+        <option value="date_desc">Date ↓</option>
+        <option value="lead_asc">Lead ↑</option>
+        <option value="err_hi_desc">Hi Error ↓</option>
+        <option value="err_lo_desc">Lo Error ↓</option>
+      </select>
+    </div>
+    <button class="btn btn-amber" id="btnRunVerify">Run Verification</button>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="vResultInfo"></span>
+  </div>
+
+  <!-- Metric tiles -->
+  <div class="metric-row" id="vMetrics">
+    <div class="metric-tile">
+      <div class="mt-label">Pairs</div>
+      <div class="mt-value amber-text" id="vMPairs">—</div>
+      <div class="mt-sub" id="vMDates">— dates</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Hi Temp Bias</div>
+      <div class="mt-value" id="vMHiBias">—</div>
+      <div class="mt-sub" id="vMHiBiasSub">forecast − observed</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Hi Temp MAE</div>
+      <div class="mt-value amber-text" id="vMHiMAE">—</div>
+      <div class="mt-sub">mean abs error °F</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Lo Temp Bias</div>
+      <div class="mt-value" id="vMLoiBias">—</div>
+      <div class="mt-sub" id="vMLoiBiasSub">forecast − observed</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Lo Temp MAE</div>
+      <div class="mt-value amber-text" id="vMLoiMAE">—</div>
+      <div class="mt-sub">mean abs error °F</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-label">Wind MAE</div>
+      <div class="mt-value amber-text" id="vMWindMAE">—</div>
+      <div class="mt-sub">max wind speed mph</div>
+    </div>
+  </div>
+
+  <!-- Verification table -->
+  <div class="verify-table-wrap">
+    <table class="verify-table" id="vTable">
+      <thead>
+        <tr>
+          <th data-col="date">Date <span class="sort-arrow">↕</span></th>
+          <th data-col="lead" class="num">Lead <span class="sort-arrow">↕</span></th>
+          <th data-col="fcst_hi" class="num">Fcst Hi <span class="sort-arrow">↕</span></th>
+          <th data-col="obs_hi" class="num">Obs Hi <span class="sort-arrow">↕</span></th>
+          <th data-col="err_hi" class="num">Err Hi <span class="sort-arrow">↕</span></th>
+          <th data-col="fcst_lo" class="num">Fcst Lo <span class="sort-arrow">↕</span></th>
+          <th data-col="obs_lo" class="num">Obs Lo <span class="sort-arrow">↕</span></th>
+          <th data-col="err_lo" class="num">Err Lo <span class="sort-arrow">↕</span></th>
+          <th data-col="fcst_wind" class="num">Fcst Wind <span class="sort-arrow">↕</span></th>
+          <th data-col="obs_wind" class="num">Obs Wind <span class="sort-arrow">↕</span></th>
+          <th data-col="err_wind" class="num">Err Wind <span class="sort-arrow">↕</span></th>
+          <th data-col="fcst_sky" class="num">Fcst Sky% <span class="sort-arrow">↕</span></th>
+          <th data-col="obs_sky" class="num">Obs Sky <span class="sort-arrow">↕</span></th>
+          <th data-col="fcst_pop" class="num">PoP% <span class="sort-arrow">↕</span></th>
+          <th data-col="obs_precip" class="num">Obs Precip <span class="sort-arrow">↕</span></th>
+          <th>Fcst Conditions</th>
+          <th>Obs Weather</th>
+        </tr>
+      </thead>
+      <tbody id="vTableBody">
+        <tr><td colspan="17" style="text-align:center;padding:40px;color:var(--text-dimmer);font-family:var(--cond);letter-spacing:2px;text-transform:uppercase;font-size:11px;">
+          Load data then click Run Verification
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination" id="vPagination"></div>
+`;
+
+// ── Verification state ────────────────────────────────────────────────────
+let V = {
+  pairs:    [],   // all joined rows
+  filtered: [],   // after lead/date filters
+  sortCol:  'date',
+  sortDir:  1,    // 1=asc, -1=desc
+  page:     0,
+  pageSize: 50,
+};
+
+// ── Stats helpers ─────────────────────────────────────────────────────────
+const mean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+const mae  = arr => arr.length ? arr.reduce((a,b)=>a+Math.abs(b),0)/arr.length : null;
+const rmse = arr => arr.length ? Math.sqrt(arr.reduce((a,b)=>a+b*b,0)/arr.length) : null;
+
+function pf(v, dec=1) {
+  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return null;
+  return parseFloat(v);
+}
+function fmtN(v, dec=1, unit='') {
+  if (v === null || v === undefined) return '—';
+  return Number(v).toFixed(dec) + unit;
+}
+function errClass(e, threshWarn=3, threshBad=6) {
+  if (e === null) return '';
+  const abs = Math.abs(e);
+  if (abs <= threshWarn) return 'err-good';
+  if (abs <= threshBad)  return 'err-warn';
+  return 'err-bad';
+}
+function errSign(e) {
+  if (e === null) return '—';
+  return (e > 0 ? '+' : '') + e.toFixed(1);
+}
+function biasClass(bias) {
+  if (bias === null) return 'amber-text';
+  if (bias >  0.5) return 'warm';
+  if (bias < -0.5) return 'cool';
+  return 'neutral';
+}
+
+// ── Build all pairs: forecasts × CLI ─────────────────────────────────────
+function buildPairs() {
+  if (!STATE.forecasts.length || !STATE.cli.length) return [];
+
+  // Index CLI by obs_date
+  const cliByDate = {};
+  for (const row of STATE.cli) {
+    if (row.obs_date) cliByDate[row.obs_date] = row;
+  }
+
+  const pairs = [];
+  for (const f of STATE.forecasts) {
+    const obs = cliByDate[f.forecast_date];
+    if (!obs) continue;
+
+    const lead    = pf(f.lead_days);
+    const fcstHi  = pf(f.high_temp_f);
+    const fcstLo  = pf(f.low_temp_f);
+    const fcstWnd = pf(f.max_wind_speed_mph);
+    const fcstSky = pf(f.sky_cover_pct);
+    const fcstPop = pf(f.precip_prob_pct);
+
+    const obsHi   = pf(obs.max_temp_f);
+    const obsLo   = pf(obs.min_temp_f);
+    const obsWnd  = pf(obs.max_wind_speed_mph);
+    // CLI sky_cover_tenths is 0-10, convert to %
+    const obsSkyT = pf(obs.sky_cover_tenths);
+    const obsSky  = obsSkyT !== null ? Math.round(obsSkyT * 10) : null;
+
+    // Precip — handle T (trace = 0.001)
+    let obsPrecip = pf(obs.precip_today_in);
+    const isTrace = obs.precip_today_in === '0.001' || obsPrecip === 0.001;
+
+    pairs.push({
+      date:       f.forecast_date,
+      lead,
+      snapshot:   f.forecast_updated_at,
+      fcstHi,  obsHi,  errHi:  (fcstHi  !== null && obsHi  !== null) ? fcstHi  - obsHi  : null,
+      fcstLo,  obsLo,  errLo:  (fcstLo  !== null && obsLo  !== null) ? fcstLo  - obsLo  : null,
+      fcstWnd, obsWnd, errWnd: (fcstWnd !== null && obsWnd !== null) ? fcstWnd - obsWnd : null,
+      fcstSky, obsSky, errSky: (fcstSky !== null && obsSky !== null) ? fcstSky - obsSky : null,
+      fcstPop,
+      obsPrecip, isTrace,
+      fcstCond:  f.day_short_forecast || '',
+      obsWx:     obs.weather_conditions || '',
+      // extras for stats
+      fcstDewp:  pf(f.avg_dewpoint_f),
+      fcstRH:    pf(f.avg_relative_humidity),
+      fcstGust:  pf(f.max_wind_gust_mph),
+      obsGust:   pf(obs.peak_gust_mph),
+      obsMaxWind:pf(obs.max_wind_speed_mph),
+      obsAvgWind:pf(obs.avg_wind_speed_mph),
+      normalHi:  pf(obs.normal_high_f),
+      normalLo:  pf(obs.normal_low_f),
+      depHi:     pf(obs.dep_max_f),
+      depLo:     pf(obs.dep_min_f),
+    });
+  }
+  return pairs;
+}
+
+// ── Apply filters ─────────────────────────────────────────────────────────
+function applyFilters() {
+  const leadSel = document.getElementById('vLead').value;
+  const dateFrom = document.getElementById('vDateFrom').value;
+  const dateTo   = document.getElementById('vDateTo').value;
+
+  let filtered = V.pairs.slice();
+
+  if (leadSel === 'best') {
+    // Keep shortest lead per date
+    const byDate = {};
+    for (const p of filtered) {
+      if (!byDate[p.date] || (p.lead !== null && p.lead < (byDate[p.date].lead ?? 999))) {
+        byDate[p.date] = p;
+      }
+    }
+    filtered = Object.values(byDate);
+  } else if (leadSel !== 'all') {
+    const ld = parseInt(leadSel);
+    filtered = filtered.filter(p => p.lead === ld);
+  }
+
+  if (dateFrom) filtered = filtered.filter(p => p.date >= dateFrom);
+  if (dateTo)   filtered = filtered.filter(p => p.date <= dateTo);
+
+  // Sort
+  const sortFns = {
+    date:       (a,b) => a.date.localeCompare(b.date),
+    lead:       (a,b) => (a.lead??99) - (b.lead??99),
+    fcst_hi:    (a,b) => (a.fcstHi??-999) - (b.fcstHi??-999),
+    obs_hi:     (a,b) => (a.obsHi??-999)  - (b.obsHi??-999),
+    err_hi:     (a,b) => (a.errHi??-999)  - (b.errHi??-999),
+    fcst_lo:    (a,b) => (a.fcstLo??-999) - (b.fcstLo??-999),
+    obs_lo:     (a,b) => (a.obsLo??-999)  - (b.obsLo??-999),
+    err_lo:     (a,b) => (a.errLo??-999)  - (b.errLo??-999),
+    fcst_wind:  (a,b) => (a.fcstWnd??-1)  - (b.fcstWnd??-1),
+    obs_wind:   (a,b) => (a.obsWnd??-1)   - (b.obsWnd??-1),
+    err_wind:   (a,b) => (a.errWnd??-999) - (b.errWnd??-999),
+    fcst_sky:   (a,b) => (a.fcstSky??-1)  - (b.fcstSky??-1),
+    obs_sky:    (a,b) => (a.obsSky??-1)   - (b.obsSky??-1),
+    fcst_pop:   (a,b) => (a.fcstPop??-1)  - (b.fcstPop??-1),
+    obs_precip: (a,b) => (a.obsPrecip??-1)- (b.obsPrecip??-1),
+  };
+
+  // Quick sort from dropdown
+  const quickSort = document.getElementById('vSort').value;
+  const quickMap = {
+    date_asc:     ['date', 1], date_desc:  ['date', -1],
+    lead_asc:     ['lead', 1],
+    err_hi_desc:  ['err_hi', -1],
+    err_lo_desc:  ['err_lo', -1],
+  };
+  if (quickMap[quickSort]) {
+    [V.sortCol, V.sortDir] = quickMap[quickSort];
+  }
+
+  const fn = sortFns[V.sortCol] || sortFns['date'];
+  filtered.sort((a,b) => fn(a,b) * V.sortDir);
+
+  V.filtered = filtered;
+  V.page = 0;
+  updateMetrics();
+  renderTable();
+  renderPagination();
+  document.getElementById('vResultInfo').textContent =
+    `${filtered.length} pairs · ${new Set(filtered.map(p=>p.date)).size} dates`;
+  document.getElementById('cntVerify').textContent = filtered.length;
+}
+
+// ── Update metric tiles ───────────────────────────────────────────────────
+function updateMetrics() {
+  const f = V.filtered;
+  const hiErrs  = f.filter(p=>p.errHi  !==null).map(p=>p.errHi);
+  const loErrs  = f.filter(p=>p.errLo  !==null).map(p=>p.errLo);
+  const wndErrs = f.filter(p=>p.errWnd !==null).map(p=>p.errWnd);
+
+  $('vMPairs').textContent = f.length;
+  $('vMDates').textContent = `${new Set(f.map(p=>p.date)).size} dates`;
+
+  const hiBias = mean(hiErrs);
+  const hiMAE  = mae(hiErrs);
+  const loBias = mean(loErrs);
+  const loMAE  = mae(loErrs);
+  const wndMAE = mae(wndErrs);
+
+  const hiBiasEl = $('vMHiBias');
+  hiBiasEl.textContent = hiBias !== null ? (hiBias>0?'+':'')+hiBias.toFixed(1)+'°F' : '—';
+  hiBiasEl.className = `mt-value ${biasClass(hiBias)}`;
+  $('vMHiBiasSub').textContent = hiBias !== null ? (hiBias > 0 ? 'runs warm' : hiBias < -0.5 ? 'runs cool' : 'well calibrated') : 'forecast − observed';
+
+  $('vMHiMAE').textContent  = hiMAE  !== null ? hiMAE.toFixed(1)+'°F' : '—';
+
+  const loBiasEl = $('vMLoiBias');
+  loBiasEl.textContent = loBias !== null ? (loBias>0?'+':'')+loBias.toFixed(1)+'°F' : '—';
+  loBiasEl.className = `mt-value ${biasClass(loBias)}`;
+  $('vMLoiBiasSub').textContent = loBias !== null ? (loBias > 0.5 ? 'runs warm' : loBias < -0.5 ? 'runs cool' : 'well calibrated') : 'forecast − observed';
+
+  $('vMLoiMAE').textContent  = loMAE  !== null ? loMAE.toFixed(1)+'°F' : '—';
+  $('vMWindMAE').textContent = wndMAE !== null ? wndMAE.toFixed(1)+' mph' : '—';
+}
+
+// ── Render table page ─────────────────────────────────────────────────────
+function renderTable() {
+  const start = V.page * V.pageSize;
+  const rows  = V.filtered.slice(start, start + V.pageSize);
+  const tbody = document.getElementById('vTableBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;padding:40px;color:var(--text-dimmer);font-family:var(--cond);letter-spacing:2px;text-transform:uppercase;font-size:11px;">No pairs match the current filters</td></tr>`;
+    return;
+  }
+
+  const leadColors = ['lead-0','lead-1','lead-2','lead-3','lead-4','lead-5','lead-6','lead-7'];
+  const WARN_TEMP=3, BAD_TEMP=6, WARN_WIND=5, BAD_WIND=10;
+
+  tbody.innerHTML = rows.map(p => {
+    const lc = leadColors[Math.min(p.lead ?? 0, 7)];
+    const leadBadge = p.lead !== null ? `<span class="lead-badge ${lc}">D${p.lead}</span>` : '—';
+
+    // Precip display
+    let precipStr = '—';
+    if (p.obsPrecip !== null) {
+      precipStr = p.isTrace ? '<span style="color:var(--cyan)">T</span>' : p.obsPrecip.toFixed(2)+'"';
+    }
+
+    // Sky: CLI is in tenths already converted to %
+    const obsSkyStr = p.obsSky !== null ? p.obsSky + '%' : '—';
+
+    return `<tr>
+      <td style="white-space:nowrap;">${p.date}</td>
+      <td class="num">${leadBadge}</td>
+      <td class="num">${fmtN(p.fcstHi,0,'°')}</td>
+      <td class="num">${fmtN(p.obsHi,0,'°')}</td>
+      <td class="num err-cell ${errClass(p.errHi,WARN_TEMP,BAD_TEMP)}">${errSign(p.errHi)}</td>
+      <td class="num">${fmtN(p.fcstLo,0,'°')}</td>
+      <td class="num">${fmtN(p.obsLo,0,'°')}</td>
+      <td class="num err-cell ${errClass(p.errLo,WARN_TEMP,BAD_TEMP)}">${errSign(p.errLo)}</td>
+      <td class="num">${fmtN(p.fcstWnd,1)}</td>
+      <td class="num">${fmtN(p.obsWnd,0)}</td>
+      <td class="num err-cell ${errClass(p.errWnd,WARN_WIND,BAD_WIND)}">${errSign(p.errWnd)}</td>
+      <td class="num">${fmtN(p.fcstSky,0,'%')}</td>
+      <td class="num">${obsSkyStr}</td>
+      <td class="num" style="color:var(--purple)">${p.fcstPop !== null ? p.fcstPop+'%' : '—'}</td>
+      <td class="num">${precipStr}</td>
+      <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.fcstCond}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.obsWx || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────
+function renderPagination() {
+  const total = V.filtered.length;
+  const pages = Math.ceil(total / V.pageSize);
+  const pg = document.getElementById('vPagination');
+
+  if (pages <= 1) { pg.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" onclick="gotoPage(${V.page-1})" ${V.page===0?'disabled':''}>◀ Prev</button>`;
+
+  const start = Math.max(0, V.page - 2);
+  const end   = Math.min(pages - 1, V.page + 2);
+  for (let i = start; i <= end; i++) {
+    html += `<button class="page-btn ${i===V.page?'active':''}" onclick="gotoPage(${i})">${i+1}</button>`;
+  }
+
+  html += `<button class="page-btn" onclick="gotoPage(${V.page+1})" ${V.page>=pages-1?'disabled':''}>Next ▶</button>`;
+  html += `<span class="page-info">${V.page*V.pageSize+1}–${Math.min((V.page+1)*V.pageSize,total)} of ${total}</span>`;
+  pg.innerHTML = html;
+}
+
+window.gotoPage = function(p) {
+  const pages = Math.ceil(V.filtered.length / V.pageSize);
+  if (p < 0 || p >= pages) return;
+  V.page = p;
+  renderTable();
+  renderPagination();
+  document.querySelector('.verify-table-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+// ── Column header sort ────────────────────────────────────────────────────
+document.getElementById('vTable').querySelectorAll('th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (V.sortCol === col) { V.sortDir *= -1; }
+    else { V.sortCol = col; V.sortDir = 1; }
+    document.querySelectorAll('.verify-table th').forEach(h => h.classList.remove('sorted'));
+    th.classList.add('sorted');
+    th.querySelector('.sort-arrow').textContent = V.sortDir === 1 ? '↑' : '↓';
+    // Override quick sort dropdown to not interfere
+    document.getElementById('vSort').value = '';
+    V.page = 0;
+    // Re-sort filtered without rebuilding
+    applyFilters();
+  });
+});
+
+// ── Run verification button ───────────────────────────────────────────────
+document.getElementById('btnRunVerify').addEventListener('click', () => {
+  if (!STATE.forecasts.length) { log('Load forecast data first', 'warn'); return; }
+  if (!STATE.cli.length)       { log('Load CLI observation data first', 'warn'); return; }
+  V.pairs = buildPairs();
+  log(`Built ${V.pairs.length} forecast×CLI pairs across ${new Set(V.pairs.map(p=>p.date)).size} dates`, 'ok');
+
+  // Auto-set date range from data
+  const dates = V.pairs.map(p=>p.date).sort();
+  if (dates.length) {
+    document.getElementById('vDateFrom').value = dates[0];
+    document.getElementById('vDateTo').value   = dates[dates.length-1];
+  }
+  applyFilters();
+});
+
+// ── Re-apply on filter changes ────────────────────────────────────────────
+['vLead','vSort','vDateFrom','vDateTo'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => { if (V.pairs.length) applyFilters(); });
+});
+
+// ── Auto-run when data loads ──────────────────────────────────────────────
+// Hook into the existing ingest functions
+const _origIngestForecasts = ingestForecasts;
+window.ingestForecasts = function(rows) {
+  _origIngestForecasts(rows);
+  if (STATE.cli.length) {
+    V.pairs = buildPairs();
+    applyFilters();
+  }
+};
+
+const _origIngestCLI = ingestCLI;
+window.ingestCLI = function(rows) {
+  _origIngestCLI(rows);
+  if (STATE.forecasts.length) {
+    V.pairs = buildPairs();
+    applyFilters();
+  }
+};
+</script>
