@@ -32,7 +32,8 @@ from datetime import datetime, timezone, date
 # ── Configuration ──────────────────────────────────────────────────────────────
 STATION     = "KLAS"
 OUTPUT_FILE = "data/observations_metar.csv"
-LOOKBACK_HOURS = 3   # fetch this many hours of history per run
+LOOKBACK_HOURS = 7   # fetch 7 hours per run — covers full 6-hour interval
+                     # plus 1-hour buffer, so a missed run leaves no gaps
 
 AWC_BASE = "https://aviationweather.gov/api/data/metar"
 HEADERS  = {
