@@ -97,15 +97,26 @@ def kt_to_mph(kt):
     return round(kt * 1.15078, 1)
 
 def compute_rh(temp_c, dewp_c):
-    """Magnus formula approximation."""
+    """August-Roche-Magnus approximation."""
     if temp_c is None or dewp_c is None: return None
-    rh = 100 * ((17.625 * dewp_c / (243.04 + dewp_c)) - (17.625 * temp_c / (243.04 + temp_c)))
-    return max(0, min(100, round(rh)))
+    try:
+        num   = 17.625 * float(dewp_c)  / (243.04 + float(dewp_c))
+        denom = 17.625 * float(temp_c)  / (243.04 + float(temp_c))
+        rh    = 100 * (num - denom)
+        # Very dry desert air (dewpoint far below temp) legitimately gives low RH;
+        # use the simpler approximation rh ≈ 100 - 5*(T-Td) as a sanity floor
+        rh2   = max(0, 100 - 5 * (float(temp_c) - float(dewp_c)))
+        return max(1, min(100, round(max(rh, rh2) if rh < 0 else rh)))
+    except (TypeError, ValueError):
+        return None
 
 def degrees_to_compass(deg):
     if deg is None: return None
-    dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']
-    return dirs[round(deg / 22.5) % 16]
+    try:
+        deg = float(deg)
+    except (TypeError, ValueError):
+        return None   # handles "VRB" and other non-numeric values
+    return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][round(deg / 22.5) % 16]
 
 def parse_visibility(vis_str):
     """Return (display_str, numeric_value) from AWC visibility field."""
@@ -230,11 +241,25 @@ def parse_observation(ob, retrieved_at):
     dewp_f  = c_to_f(dewp_c)
     rh      = compute_rh(temp_c, dewp_c)
 
-    # Wind
-    wdir    = ob.get("wdir")   # degrees, 0 = calm or variable
-    wspd_kt = ob.get("wspd")
-    wgst_kt = ob.get("wgst")
-    compass = degrees_to_compass(wdir) if wdir and wdir != 0 else None
+    # Wind — wdir may be an int, float, or "VRB" (variable)
+    wdir_raw = ob.get("wdir")
+    wspd_kt  = ob.get("wspd")
+    wgst_kt  = ob.get("wgst")
+
+    # Normalise wdir: "VRB" → store as "VRB"; numeric → int
+    if wdir_raw is None:
+        wdir    = None
+        compass = None
+    elif str(wdir_raw).upper() == "VRB":
+        wdir    = "VRB"
+        compass = "VRB"
+    else:
+        try:
+            wdir    = int(float(wdir_raw))
+            compass = degrees_to_compass(wdir) if wdir != 0 else "CALM"
+        except (TypeError, ValueError):
+            wdir    = wdir_raw
+            compass = None
 
     # Visibility
     vis_str, vis_num = parse_visibility(ob.get("visib"))
@@ -269,8 +294,8 @@ def parse_observation(ob, retrieved_at):
         "dewpoint_c":            v(dewp_c),
         "dewpoint_f":            v(dewp_f),
         "relative_humidity":     v(rh),
-        "wind_dir_deg":          v(wdir),
-        "wind_dir_compass":      v(compass),
+        "wind_dir_deg":          v(wdir),      # int degrees, "VRB", or None
+        "wind_dir_compass":      v(compass),   # cardinal, "VRB", "CALM", or None
         "wind_speed_kt":         v(wspd_kt),
         "wind_speed_mph":        v(kt_to_mph(wspd_kt)),
         "wind_gust_kt":          v(wgst_kt),
