@@ -2666,3 +2666,664 @@ window.applyFilters = function() {
   if (V.pairs.length) runStatsAnalysis();
 };
 </script>
+
+<style>
+/* ── Piece 5 — Hourly Drill-Down styles ───────────────────────────────── */
+.drill-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+@media (max-width: 1100px) { .drill-layout { grid-template-columns: 1fr; } }
+
+.date-picker-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.date-nav-btn {
+  font-family: var(--mono); font-size: 16px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border2); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.date-nav-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.date-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.date-pills {
+  display: flex; gap: 6px; flex-wrap: wrap; flex: 1;
+}
+.date-pill {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 10px; border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.date-pill:hover { border-color: var(--amber-dim); color: var(--amber); }
+.date-pill.active { background: var(--amber-glow); color: var(--amber); border-color: var(--amber-dim); }
+
+/* METAR obs table */
+.metar-obs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.metar-obs-table th {
+  font-family: var(--cond); font-size: 9px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); padding: 6px 8px;
+  border-bottom: 1px solid var(--border2); background: var(--surface);
+  white-space: nowrap; text-align: right;
+}
+.metar-obs-table th:first-child { text-align: left; }
+.metar-obs-table td {
+  font-family: var(--mono); font-size: 11px;
+  padding: 5px 8px; border-bottom: 1px solid rgba(30,46,61,0.3);
+  text-align: right;
+}
+.metar-obs-table td:first-child { text-align: left; }
+.metar-obs-table tr:hover td { background: var(--surface2); }
+.metar-obs-table tr.special td { color: var(--amber); }
+.metar-obs-table .fc-cell { color: var(--purple); font-size: 10px; }
+.metar-obs-table .wx-cell { color: var(--cyan); font-size: 10px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Forecast sidebar */
+.fcst-sidebar .fs-header {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.fcst-snap-item {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.fcst-snap-item:hover { border-color: var(--amber-dim); }
+.fcst-snap-item.active { border-color: var(--amber); background: var(--amber-glow2); }
+.fcst-snap-item .fsi-time {
+  font-family: var(--mono); font-size: 11px; color: var(--amber); margin-bottom: 4px;
+}
+.fcst-snap-item .fsi-lead {
+  display: inline-block; margin-bottom: 6px;
+}
+.fcst-snap-item .fsi-vals {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+}
+.fsi-val { font-family: var(--mono); font-size: 11px; }
+.fsi-label { font-family: var(--cond); font-size: 9px; color: var(--text-dimmer); letter-spacing: 1px; text-transform: uppercase; }
+
+/* Summary stat strip */
+.day-summary-strip {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+  margin-bottom: 12px;
+}
+@media (max-width: 900px) { .day-summary-strip { grid-template-columns: repeat(3, 1fr); } }
+.dss-item {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 10px; text-align: center;
+}
+.dss-label { font-family: var(--cond); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer); }
+.dss-value { font-family: var(--mono); font-size: 16px; margin-top: 2px; }
+
+/* Wind direction indicator */
+.wind-dir-wrap { display: flex; align-items: center; gap: 6px; }
+.wind-dir-arrow {
+  width: 16px; height: 16px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 12px; transition: transform 0.3s;
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIECE 5 — HOURLY METAR DRILL-DOWN
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('panel-metar').innerHTML = `
+  <!-- Date picker -->
+  <div class="date-picker-bar">
+    <span class="filter-label">Select Date</span>
+    <button class="date-nav-btn" id="drillPrev" title="Previous day">◀</button>
+    <div class="date-pills" id="drillDatePills"></div>
+    <button class="date-nav-btn" id="drillNext" title="Next day">▶</button>
+    <input type="date" class="filter-select" id="drillDateInput">
+    <button class="btn btn-amber" id="btnDrillLoad">Load Day</button>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="drillInfo"></span>
+  </div>
+
+  <!-- Day summary strip -->
+  <div class="day-summary-strip" id="drillSummary" style="display:none;">
+    <div class="dss-item"><div class="dss-label">Max Temp</div><div class="dss-value" id="dsMaxTemp" style="color:var(--red)">—</div></div>
+    <div class="dss-item"><div class="dss-label">Min Temp</div><div class="dss-value" id="dsMinTemp" style="color:var(--cyan)">—</div></div>
+    <div class="dss-item"><div class="dss-label">Max Wind</div><div class="dss-value" id="dsMaxWind" style="color:var(--amber)">—</div></div>
+    <div class="dss-item"><div class="dss-label">Max Gust</div><div class="dss-value" id="dsMaxGust" style="color:var(--amber)">—</div></div>
+    <div class="dss-item"><div class="dss-label">Min Vis</div><div class="dss-value" id="dsMinVis" style="color:var(--purple)">—</div></div>
+    <div class="dss-item"><div class="dss-label">Precip 24h</div><div class="dss-value" id="dsPrecip" style="color:var(--green)">—</div></div>
+  </div>
+
+  <!-- Main layout: charts + sidebar -->
+  <div class="drill-layout">
+
+    <!-- Left: charts stack -->
+    <div>
+      <!-- Temp + Dewpoint chart -->
+      <div class="chart-card" style="margin-bottom:12px;">
+        <div class="cc-header">
+          <span class="cc-title">Temperature &amp; Dewpoint</span>
+          <span class="cc-sub" style="margin-left:8px;">°F · hourly METAR observations vs forecast</span>
+        </div>
+        <div class="chart-wrap-tall"><canvas id="drillTempChart"></canvas></div>
+      </div>
+
+      <!-- Wind chart -->
+      <div class="chart-card" style="margin-bottom:12px;">
+        <div class="cc-header">
+          <span class="cc-title">Wind Speed &amp; Gusts</span>
+          <span class="cc-sub" style="margin-left:8px;">mph · gust shown where reported</span>
+        </div>
+        <div class="chart-wrap"><canvas id="drillWindChart"></canvas></div>
+      </div>
+
+      <!-- Visibility + Sky cover chart -->
+      <div class="chart-card" style="margin-bottom:12px;">
+        <div class="cc-header">
+          <span class="cc-title">Visibility &amp; Sky Cover</span>
+          <span class="cc-sub" style="margin-left:8px;">SM · % · ceiling shown where reported</span>
+        </div>
+        <div class="chart-wrap"><canvas id="drillVisChart"></canvas></div>
+      </div>
+
+      <!-- Hourly obs table -->
+      <div class="chart-card">
+        <div class="cc-header">
+          <span class="cc-title">Hourly Observations</span>
+          <span class="cc-sub" id="drillRawSub" style="margin-left:8px;"></span>
+        </div>
+        <div style="overflow-x:auto;max-height:300px;overflow-y:auto;">
+          <table class="metar-obs-table" id="drillObsTable">
+            <thead>
+              <tr>
+                <th>Time (PDT)</th>
+                <th>Type</th>
+                <th>Temp</th>
+                <th>Dewpt</th>
+                <th>RH%</th>
+                <th>Wind</th>
+                <th>Gust</th>
+                <th>Vis SM</th>
+                <th>Sky%</th>
+                <th>Ceil ft</th>
+                <th>Altim</th>
+                <th>WX</th>
+                <th>Flight Cat</th>
+              </tr>
+            </thead>
+            <tbody id="drillObsBody">
+              <tr><td colspan="13" style="text-align:center;padding:20px;color:var(--text-dimmer);">Select a date to load observations</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: forecast sidebar -->
+    <div>
+      <div class="chart-card" style="position:sticky;top:80px;">
+        <div class="fsst-header" style="font-family:var(--cond);font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px;">
+          Forecasts for This Date
+        </div>
+        <div id="drillFcstSidebar">
+          <div class="empty-state" style="padding:30px 10px;">
+            <div class="empty-msg">Load a day to see forecasts</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+`;
+
+// ── Chart instances ────────────────────────────────────────────────────────
+let drillTempChart = null, drillWindChart = null, drillVisChart = null;
+let drillCurrentDate = null;
+
+// ── Build date pill strip from available METAR dates ───────────────────────
+function buildDrillDatePills() {
+  const dates = [...new Set(STATE.metar.map(r => r.obs_date_local).filter(Boolean))].sort().reverse();
+  const pills = document.getElementById('drillDatePills');
+
+  if (!dates.length) {
+    pills.innerHTML = '<span style="color:var(--text-dimmer);font-size:11px;font-family:var(--mono);">No METAR data loaded</span>';
+    return;
+  }
+
+  // Show last 14 dates as pills
+  const recent = dates.slice(0, 14);
+  pills.innerHTML = recent.map(d => {
+    const dow  = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+    const mm   = d.slice(5);
+    return `<button class="date-pill ${d === drillCurrentDate ? 'active' : ''}"
+      data-date="${d}">${dow} ${mm}</button>`;
+  }).join('');
+
+  pills.querySelectorAll('.date-pill').forEach(btn => {
+    btn.addEventListener('click', () => loadDrillDay(btn.dataset.date));
+  });
+
+  // Set date input range
+  const dateInput = document.getElementById('drillDateInput');
+  dateInput.min = dates[dates.length - 1];
+  dateInput.max = dates[0];
+  if (!drillCurrentDate) dateInput.value = dates[0];
+}
+
+// ── Load a day's METAR data ────────────────────────────────────────────────
+function loadDrillDay(dateStr) {
+  drillCurrentDate = dateStr;
+  document.getElementById('drillDateInput').value = dateStr;
+
+  // Filter METAR rows for this local date
+  const rows = STATE.metar
+    .filter(r => r.obs_date_local === dateStr)
+    .sort((a, b) => a.obs_time_utc.localeCompare(b.obs_time_utc));
+
+  document.getElementById('drillInfo').textContent =
+    `${rows.length} observations on ${dateStr}`;
+  document.getElementById('drillRawSub').textContent =
+    `${rows.length} records · ${rows.filter(r => r.metar_type === 'SPECI').length} SPECIs`;
+
+  // Update pill highlights
+  document.querySelectorAll('.date-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.date === dateStr);
+  });
+
+  if (!rows.length) {
+    document.getElementById('drillObsBody').innerHTML =
+      `<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--text-dimmer);">No METAR data for ${dateStr}</td></tr>`;
+    return;
+  }
+
+  // Day summary
+  renderDaySummary(rows);
+
+  // Charts
+  renderDrillCharts(rows, dateStr);
+
+  // Observation table
+  renderDrillObsTable(rows);
+
+  // Forecast sidebar
+  renderDrillFcstSidebar(dateStr);
+}
+
+// ── Day summary strip ──────────────────────────────────────────────────────
+function renderDaySummary(rows) {
+  const pf = v => parseFloat(v) || null;
+  const temps = rows.map(r => pf(r.temp_f)).filter(v => v !== null);
+  const winds = rows.map(r => pf(r.wind_speed_mph)).filter(v => v !== null);
+  const gusts = rows.map(r => pf(r.wind_gust_mph)).filter(v => v !== null);
+  const vis   = rows.map(r => pf(r.visibility_sm_numeric)).filter(v => v !== null);
+  const p24   = rows.map(r => pf(r.precip_24hr_in)).filter(v => v !== null);
+
+  document.getElementById('dsMaxTemp').textContent = temps.length ? Math.max(...temps).toFixed(0) + '°F' : '—';
+  document.getElementById('dsMinTemp').textContent = temps.length ? Math.min(...temps).toFixed(0) + '°F' : '—';
+  document.getElementById('dsMaxWind').textContent = winds.length ? Math.max(...winds).toFixed(0) + ' mph' : '—';
+  document.getElementById('dsMaxGust').textContent = gusts.length ? Math.max(...gusts).toFixed(0) + ' mph' : '—';
+  document.getElementById('dsMinVis').textContent  = vis.length   ? Math.min(...vis).toFixed(1) + ' SM' : '—';
+  document.getElementById('dsPrecip').textContent  = p24.length   ? Math.max(...p24).toFixed(2) + '"' : '0.00"';
+  document.getElementById('drillSummary').style.display = '';
+}
+
+// ── Local time label from UTC string ──────────────────────────────────────
+function utcToLocalTime(utcStr) {
+  // PDT = UTC-7, PST = UTC-8
+  try {
+    const dt = new Date(utcStr);
+    const m  = dt.getUTCMonth() + 1;
+    const offset = (m >= 3 && m <= 10) ? -7 : -8;
+    const localH = (dt.getUTCHours() + offset + 24) % 24;
+    const localM = dt.getUTCMinutes();
+    const ampm = localH >= 12 ? 'PM' : 'AM';
+    const h12  = localH % 12 || 12;
+    return `${h12}:${String(localM).padStart(2,'0')} ${ampm}`;
+  } catch(e) { return utcStr.slice(11,16); }
+}
+
+// ── Main charts ────────────────────────────────────────────────────────────
+function renderDrillCharts(rows, dateStr) {
+  const pf = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+  // Build time labels (local time)
+  const labels   = rows.map(r => utcToLocalTime(r.obs_time_utc));
+  const temps    = rows.map(r => pf(r.temp_f));
+  const dewpts   = rows.map(r => pf(r.dewpoint_f));
+  const windSpd  = rows.map(r => pf(r.wind_speed_mph));
+  const windGust = rows.map(r => pf(r.wind_gust_mph));
+  const vis      = rows.map(r => { const v = pf(r.visibility_sm_numeric); return v !== null ? Math.min(v, 10) : null; });
+  const sky      = rows.map(r => pf(r.sky_cover_pct));
+
+  // Get forecast for this date (best lead — shortest available)
+  const fcstRows = STATE.forecasts
+    .filter(r => r.forecast_date === dateStr)
+    .sort((a,b) => (parseInt(a.lead_days)||99) - (parseInt(b.lead_days)||99));
+  const bestFcst = fcstRows[0] || null;
+
+  // ── Temperature chart ──────────────────────────────────────────────────
+  if (drillTempChart) drillTempChart.destroy();
+
+  const tempDatasets = [
+    {
+      label: 'Temp (°F)',
+      data: temps,
+      borderColor: '#e84040',
+      backgroundColor: 'rgba(232,64,64,0.1)',
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+    },
+    {
+      label: 'Dewpoint (°F)',
+      data: dewpts,
+      borderColor: '#2ec4e8',
+      backgroundColor: 'rgba(46,196,232,0.1)',
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+    },
+  ];
+
+  // Add forecast hi/lo as reference lines if available
+  if (bestFcst) {
+    const fcstHi = pf(bestFcst.high_temp_f);
+    const fcstLo = pf(bestFcst.low_temp_f);
+    if (fcstHi !== null) {
+      tempDatasets.push({
+        label: `Fcst Hi (D${bestFcst.lead_days})`,
+        data: rows.map(() => fcstHi),
+        borderColor: 'rgba(232,64,64,0.4)',
+        borderWidth: 1.5, borderDash: [6,3],
+        pointRadius: 0, tension: 0,
+      });
+    }
+    if (fcstLo !== null) {
+      tempDatasets.push({
+        label: `Fcst Lo (D${bestFcst.lead_days})`,
+        data: rows.map(() => fcstLo),
+        borderColor: 'rgba(46,196,232,0.4)',
+        borderWidth: 1.5, borderDash: [6,3],
+        pointRadius: 0, tension: 0,
+      });
+    }
+  }
+
+  drillTempChart = new Chart(document.getElementById('drillTempChart'), {
+    type: 'line',
+    data: { labels, datasets: tempDatasets },
+    options: drillChartOptions('°F'),
+  });
+
+  // ── Wind chart ─────────────────────────────────────────────────────────
+  if (drillWindChart) drillWindChart.destroy();
+
+  const windDatasets = [
+    {
+      label: 'Wind Speed (mph)',
+      data: windSpd,
+      borderColor: '#e8a020',
+      backgroundColor: 'rgba(232,160,32,0.12)',
+      borderWidth: 2, pointRadius: 3, tension: 0.3,
+      fill: true,
+    },
+    {
+      label: 'Gust (mph)',
+      data: windGust,
+      borderColor: '#3ddc84',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5, pointRadius: 4,
+      pointStyle: 'triangle',
+      tension: 0, showLine: false,
+    },
+  ];
+
+  if (bestFcst) {
+    const fcstWind = pf(bestFcst.max_wind_speed_mph);
+    if (fcstWind !== null) {
+      windDatasets.push({
+        label: `Fcst Wind (D${bestFcst.lead_days})`,
+        data: rows.map(() => fcstWind),
+        borderColor: 'rgba(232,160,32,0.35)',
+        borderWidth: 1.5, borderDash: [6,3],
+        pointRadius: 0, tension: 0,
+      });
+    }
+  }
+
+  drillWindChart = new Chart(document.getElementById('drillWindChart'), {
+    type: 'line',
+    data: { labels, datasets: windDatasets },
+    options: drillChartOptions('mph', 0),
+  });
+
+  // ── Visibility + Sky chart ─────────────────────────────────────────────
+  if (drillVisChart) drillVisChart.destroy();
+
+  drillVisChart = new Chart(document.getElementById('drillVisChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Visibility (SM, capped 10)',
+          data: vis,
+          borderColor: '#9b6dff',
+          backgroundColor: 'rgba(155,109,255,0.08)',
+          borderWidth: 2, pointRadius: 3, tension: 0.3,
+          fill: true,
+          yAxisID: 'yVis',
+        },
+        {
+          label: 'Sky Cover (%)',
+          data: sky,
+          borderColor: '#6a8898',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5, pointRadius: 2, tension: 0.3,
+          borderDash: [3,2],
+          yAxisID: 'ySky',
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: CHART_DEFAULTS.legend, font: { size: 11 } } },
+        tooltip: { callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1) ?? '—'}`
+        }}
+      },
+      scales: {
+        x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick, maxRotation: 45, font: { size: 10 } } },
+        yVis: {
+          type: 'linear', position: 'left',
+          grid: { color: CHART_DEFAULTS.grid }, ticks: { color: '#9b6dff' },
+          title: { display: true, text: 'Visibility (SM)', color: '#9b6dff' },
+          min: 0, max: 10.5,
+        },
+        ySky: {
+          type: 'linear', position: 'right',
+          grid: { display: false }, ticks: { color: CHART_DEFAULTS.tick },
+          title: { display: true, text: 'Sky Cover (%)', color: CHART_DEFAULTS.tick },
+          min: 0, max: 100,
+        }
+      }
+    }
+  });
+}
+
+// ── Shared chart options factory ───────────────────────────────────────────
+function drillChartOptions(unit, beginAtZero) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: CHART_DEFAULTS.legend, font: { size: 11 } } },
+      tooltip: { callbacks: {
+        label: ctx => {
+          const v = ctx.parsed.y;
+          return v !== null ? ` ${ctx.dataset.label}: ${v.toFixed(1)}${unit}` : null;
+        }
+      }}
+    },
+    scales: {
+      x: {
+        grid: { color: CHART_DEFAULTS.grid },
+        ticks: { color: CHART_DEFAULTS.tick, maxRotation: 45, font: { size: 10 } }
+      },
+      y: {
+        grid: { color: CHART_DEFAULTS.grid },
+        ticks: { color: CHART_DEFAULTS.tick },
+        beginAtZero: beginAtZero !== undefined ? beginAtZero === 0 : false,
+      }
+    }
+  };
+}
+
+// ── Hourly observation table ───────────────────────────────────────────────
+function renderDrillObsTable(rows) {
+  const pf = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+  const fcColors = { VFR:'var(--green)', MVFR:'var(--amber)', IFR:'var(--red)', LIFR:'var(--red)' };
+
+  const html = rows.map(r => {
+    const localTime = utcToLocalTime(r.obs_time_utc);
+    const isSpeci   = r.metar_type === 'SPECI';
+    const fcStyle   = fcColors[r.flight_category] || 'var(--text-dim)';
+
+    const windStr = r.wind_dir_compass && r.wind_dir_compass !== 'CALM'
+      ? `${r.wind_dir_compass} ${r.wind_speed_mph}`
+      : r.wind_dir_compass === 'CALM' ? 'CALM'
+      : r.wind_speed_mph || '—';
+
+    const gustStr = r.wind_gust_mph ? `${r.wind_gust_mph}G` : '—';
+    const visStr  = r.visibility_sm || '—';
+    const skyStr  = r.sky_cover_pct !== '' ? r.sky_cover_pct + '%' : '—';
+    const ceilStr = r.ceiling_ft !== '' ? r.ceiling_ft : '—';
+
+    return `<tr class="${isSpeci ? 'special' : ''}">
+      <td style="white-space:nowrap;">${localTime}${isSpeci ? ' <span style="color:var(--amber);font-size:9px;">SPECI</span>' : ''}</td>
+      <td>${r.metar_type || '—'}</td>
+      <td>${r.temp_f !== '' ? r.temp_f + '°' : '—'}</td>
+      <td>${r.dewpoint_f !== '' ? r.dewpoint_f + '°' : '—'}</td>
+      <td>${r.relative_humidity !== '' ? r.relative_humidity + '%' : '—'}</td>
+      <td style="white-space:nowrap;">${windStr}</td>
+      <td>${gustStr}</td>
+      <td>${visStr}</td>
+      <td>${skyStr}</td>
+      <td>${ceilStr}</td>
+      <td>${r.altimeter_inhg || '—'}</td>
+      <td class="wx-cell" title="${r.wx_string || ''}">${r.wx_string || '—'}</td>
+      <td class="fc-cell" style="color:${fcStyle};">${r.flight_category || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('drillObsBody').innerHTML = html ||
+    '<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--text-dimmer);">No observations</td></tr>';
+}
+
+// ── Forecast sidebar ───────────────────────────────────────────────────────
+function renderDrillFcstSidebar(dateStr) {
+  const fcsts = STATE.forecasts
+    .filter(r => r.forecast_date === dateStr)
+    .sort((a,b) => (parseInt(a.lead_days)||99) - (parseInt(b.lead_days)||99));
+
+  const sidebar = document.getElementById('drillFcstSidebar');
+
+  if (!fcsts.length) {
+    sidebar.innerHTML = '<div class="empty-state" style="padding:20px 10px;"><div class="empty-msg">No forecasts found for this date</div></div>';
+    return;
+  }
+
+  // Deduplicate by forecast_updated_at (one entry per NWS update)
+  const seen = new Set();
+  const unique = fcsts.filter(r => {
+    if (seen.has(r.forecast_updated_at)) return false;
+    seen.add(r.forecast_updated_at);
+    return true;
+  });
+
+  const leadColors = ['#3ddc84','#2ec4e8','#e8a020','#e8a020','#9b6dff','#9b6dff','#e84040','#e84040'];
+
+  sidebar.innerHTML = unique.map((r, i) => {
+    const lead = parseInt(r.lead_days) ?? '?';
+    const lc   = leadColors[Math.min(lead, 7)];
+    const time = r.forecast_updated_at ? r.forecast_updated_at.slice(0,16).replace('T',' ') : '—';
+
+    return `<div class="fcst-snap-item ${i===0?'active':''}" data-idx="${i}">
+      <div class="fsi-time">${time} UTC</div>
+      <div class="fsi-lead"><span class="lead-badge lead-${Math.min(lead,7)}" style="color:${lc};background:${lc}22;border:1px solid ${lc}44;">D${lead}</span></div>
+      <div class="fsi-vals">
+        <div>
+          <div class="fsi-label">High</div>
+          <div class="fsi-val" style="color:var(--red);">${r.high_temp_f || '—'}°F</div>
+        </div>
+        <div>
+          <div class="fsi-label">Low</div>
+          <div class="fsi-val" style="color:var(--cyan);">${r.low_temp_f || '—'}°F</div>
+        </div>
+        <div>
+          <div class="fsi-label">Wind</div>
+          <div class="fsi-val" style="color:var(--amber);">${r.max_wind_speed_mph ? parseFloat(r.max_wind_speed_mph).toFixed(0)+' mph' : '—'}</div>
+        </div>
+        <div>
+          <div class="fsi-label">PoP</div>
+          <div class="fsi-val" style="color:var(--purple);">${r.precip_prob_pct !== '' ? r.precip_prob_pct+'%' : '—'}</div>
+        </div>
+        <div>
+          <div class="fsi-label">Dewpt</div>
+          <div class="fsi-val">${r.avg_dewpoint_f ? parseFloat(r.avg_dewpoint_f).toFixed(0)+'°F' : '—'}</div>
+        </div>
+        <div>
+          <div class="fsi-label">Sky</div>
+          <div class="fsi-val">${r.sky_cover_pct !== '' ? r.sky_cover_pct+'%' : '—'}</div>
+        </div>
+      </div>
+      <div style="font-family:var(--sans);font-size:10px;color:var(--text-dimmer);margin-top:6px;">${r.day_short_forecast || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Wire controls ─────────────────────────────────────────────────────────
+document.getElementById('btnDrillLoad').addEventListener('click', () => {
+  const d = document.getElementById('drillDateInput').value;
+  if (d) loadDrillDay(d);
+  else log('Select a date first', 'warn');
+});
+
+document.getElementById('drillDateInput').addEventListener('change', e => {
+  if (e.target.value) loadDrillDay(e.target.value);
+});
+
+document.getElementById('drillPrev').addEventListener('click', () => {
+  if (!drillCurrentDate) return;
+  const dates = [...new Set(STATE.metar.map(r => r.obs_date_local).filter(Boolean))].sort();
+  const idx   = dates.indexOf(drillCurrentDate);
+  if (idx > 0) loadDrillDay(dates[idx - 1]);
+});
+
+document.getElementById('drillNext').addEventListener('click', () => {
+  if (!drillCurrentDate) return;
+  const dates = [...new Set(STATE.metar.map(r => r.obs_date_local).filter(Boolean))].sort();
+  const idx   = dates.indexOf(drillCurrentDate);
+  if (idx < dates.length - 1) loadDrillDay(dates[idx + 1]);
+});
+
+// ── Auto-init when METAR data loads ───────────────────────────────────────
+const _origIngestMETAR = window.ingestMETAR;
+window.ingestMETAR = function(rows) {
+  _origIngestMETAR(rows);
+  buildDrillDatePills();
+  // Auto-load most recent date
+  const dates = [...new Set(rows.map(r => r.obs_date_local).filter(Boolean))].sort();
+  if (dates.length) loadDrillDay(dates[dates.length - 1]);
+};
+</script>
