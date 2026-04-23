@@ -3327,3 +3327,556 @@ window.ingestMETAR = function(rows) {
   if (dates.length) loadDrillDay(dates[dates.length - 1]);
 };
 </script>
+
+<style>
+/* ── Piece 6 — Event Tracker styles ──────────────────────────────────── */
+.event-controls {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 16px;
+}
+.event-type-toggle {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.evt-type-btn {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 12px; border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s;
+}
+.evt-type-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.evt-type-btn.on { font-weight: 600; }
+.evt-type-btn.on.cat-temp     { background: rgba(232,64,64,0.12);   color: #e84040; border-color: rgba(232,64,64,0.4); }
+.evt-type-btn.on.cat-wind     { background: rgba(232,160,32,0.12);  color: var(--amber); border-color: var(--amber-dim); }
+.evt-type-btn.on.cat-precip   { background: rgba(61,220,132,0.12);  color: var(--green); border-color: var(--green-dim); }
+.evt-type-btn.on.cat-vis      { background: rgba(155,109,255,0.12); color: var(--purple); border-color: rgba(155,109,255,0.4); }
+.evt-type-btn.on.cat-record   { background: rgba(46,196,232,0.12);  color: var(--cyan); border-color: var(--cyan-dim); }
+.evt-type-btn.on.cat-miss     { background: rgba(232,64,64,0.12);   color: #e84040; border-color: rgba(232,64,64,0.4); }
+
+/* Event list */
+.event-list { display: flex; flex-direction: column; gap: 8px; }
+
+.event-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.event-card:hover { background: var(--surface2); }
+.event-card.cat-temp   { border-left-color: #e84040; }
+.event-card.cat-wind   { border-left-color: var(--amber); }
+.event-card.cat-precip { border-left-color: var(--green); }
+.event-card.cat-vis    { border-left-color: var(--purple); }
+.event-card.cat-record { border-left-color: var(--cyan); }
+.event-card.cat-miss   { border-left-color: #e84040; }
+
+.event-card-header {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px;
+}
+.evt-date {
+  font-family: var(--mono); font-size: 13px; color: var(--text);
+  white-space: nowrap;
+}
+.evt-badge {
+  font-family: var(--cond); font-size: 9px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 10px;
+}
+.badge-temp   { background: rgba(232,64,64,0.15);   color: #e84040; }
+.badge-wind   { background: rgba(232,160,32,0.15);  color: var(--amber); }
+.badge-precip { background: rgba(61,220,132,0.15);  color: var(--green); }
+.badge-vis    { background: rgba(155,109,255,0.15); color: var(--purple); }
+.badge-record { background: rgba(46,196,232,0.15);  color: var(--cyan); }
+.badge-miss   { background: rgba(232,64,64,0.15);   color: #e84040; }
+
+.evt-title {
+  font-family: var(--sans); font-size: 13px; color: var(--text); flex: 1;
+}
+.evt-severity {
+  font-family: var(--mono); font-size: 12px; margin-left: auto;
+  white-space: nowrap;
+}
+.sev-high { color: var(--red); }
+.sev-med  { color: var(--amber); }
+.sev-low  { color: var(--text-dim); }
+
+.evt-detail {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+}
+.evt-detail-item { display: flex; gap: 6px; }
+.evt-detail-label { color: var(--text-dimmer); }
+.evt-detail-val   { color: var(--text); }
+
+/* Drill link */
+.evt-drill-link {
+  font-family: var(--cond); font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--amber-dim);
+  margin-left: auto; align-self: center;
+  transition: color 0.15s;
+}
+.event-card:hover .evt-drill-link { color: var(--amber); }
+
+/* Summary buckets at top */
+.event-summary-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1000px) { .event-summary-row { grid-template-columns: repeat(3,1fr); } }
+
+.evt-bucket {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px; text-align: center;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.evt-bucket:hover { border-color: var(--amber-dim); }
+.evt-bucket .eb-count {
+  font-family: var(--mono); font-size: 22px; line-height: 1;
+}
+.evt-bucket .eb-label {
+  font-family: var(--cond); font-size: 9px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-dimmer); margin-top: 4px;
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIECE 6 — EVENT TRACKER
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('panel-events').innerHTML = `
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <div class="filter-group">
+      <span class="filter-label">Categories</span>
+      <div class="event-type-toggle" id="evtTypeToggle">
+        <button class="evt-type-btn on cat-temp"   data-cat="temp">🌡 Temp Error</button>
+        <button class="evt-type-btn on cat-wind"   data-cat="wind">💨 Wind Error</button>
+        <button class="evt-type-btn on cat-precip" data-cat="precip">🌧 Precip Miss</button>
+        <button class="evt-type-btn on cat-vis"    data-cat="vis">🌫 Low Visibility</button>
+        <button class="evt-type-btn on cat-record" data-cat="record">⭐ Record Temp</button>
+        <button class="evt-type-btn on cat-miss"   data-cat="miss">❌ PoP Miss</button>
+      </div>
+    </div>
+    <div class="filter-group" style="margin-left:auto;">
+      <span class="filter-label">Sort</span>
+      <select class="filter-select" id="evtSort">
+        <option value="date_desc">Date ↓ (newest)</option>
+        <option value="date_asc">Date ↑ (oldest)</option>
+        <option value="sev_desc">Severity ↓</option>
+      </select>
+    </div>
+    <button class="btn btn-amber" id="btnRunEvents">Scan Events</button>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="evtInfo"></span>
+  </div>
+
+  <!-- Summary buckets -->
+  <div class="event-summary-row" id="evtSummaryRow">
+    <div class="evt-bucket" data-cat="temp">
+      <div class="eb-count" style="color:#e84040;" id="evtCntTemp">—</div>
+      <div class="eb-label">Temp Errors</div>
+    </div>
+    <div class="evt-bucket" data-cat="wind">
+      <div class="eb-count" style="color:var(--amber);" id="evtCntWind">—</div>
+      <div class="eb-label">Wind Errors</div>
+    </div>
+    <div class="evt-bucket" data-cat="precip">
+      <div class="eb-count" style="color:var(--green);" id="evtCntPrecip">—</div>
+      <div class="eb-label">Precip Events</div>
+    </div>
+    <div class="evt-bucket" data-cat="vis">
+      <div class="eb-count" style="color:var(--purple);" id="evtCntVis">—</div>
+      <div class="eb-label">Low Vis Events</div>
+    </div>
+    <div class="evt-bucket" data-cat="record">
+      <div class="eb-count" style="color:var(--cyan);" id="evtCntRecord">—</div>
+      <div class="eb-label">Record Temps</div>
+    </div>
+    <div class="evt-bucket" data-cat="miss">
+      <div class="eb-count" style="color:#e84040;" id="evtCntMiss">—</div>
+      <div class="eb-label">PoP Misses</div>
+    </div>
+  </div>
+
+  <!-- Event list -->
+  <div id="evtList">
+    <div class="empty-state">
+      <div class="empty-icon">◑</div>
+      <div class="empty-title">No Events Scanned</div>
+      <div class="empty-msg">Load data then click Scan Events</div>
+    </div>
+  </div>
+`;
+
+// ── Event thresholds ──────────────────────────────────────────────────────
+const EVT_THRESHOLDS = {
+  tempErrWarn:    4,    // °F — notable high/low temp error
+  tempErrBad:     7,    // °F — significant error
+  windErrWarn:    8,    // mph — notable wind error
+  windErrBad:    14,    // mph — significant wind error
+  visLow:         3,    // SM — low visibility event
+  visVeryLow:     1,    // SM — very low visibility
+  popThreshold:  30,    // % — forecast "yes" for precip
+  precipThresh: 0.005, // in — observed precip threshold
+};
+
+// ── Active categories ─────────────────────────────────────────────────────
+let evtActiveCategories = new Set(['temp','wind','precip','vis','record','miss']);
+
+document.getElementById('evtTypeToggle').querySelectorAll('.evt-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const cat = btn.dataset.cat;
+    if (evtActiveCategories.has(cat)) { evtActiveCategories.delete(cat); btn.classList.remove('on'); }
+    else                               { evtActiveCategories.add(cat);    btn.classList.add('on'); }
+    renderEventList();
+  });
+});
+
+// Bucket clicks toggle category filter
+document.getElementById('evtSummaryRow').querySelectorAll('.evt-bucket').forEach(b => {
+  b.addEventListener('click', () => {
+    const cat = b.dataset.cat;
+    const btn = document.querySelector(`.evt-type-btn[data-cat="${cat}"]`);
+    if (btn) btn.click();
+  });
+});
+
+// ── All generated events ──────────────────────────────────────────────────
+let ALL_EVENTS = [];
+
+// ── Core event scanner ────────────────────────────────────────────────────
+function scanEvents() {
+  ALL_EVENTS = [];
+
+  // ── 1. Temp & Wind forecast errors (from V.pairs — best lead per date) ─
+  const bestByDate = {};
+  for (const p of V.pairs) {
+    if (!bestByDate[p.date] ||
+        (p.lead !== null && p.lead < (bestByDate[p.date].lead ?? 999))) {
+      bestByDate[p.date] = p;
+    }
+  }
+
+  for (const p of Object.values(bestByDate)) {
+    // High temp error
+    if (p.errHi !== null && Math.abs(p.errHi) >= EVT_THRESHOLDS.tempErrWarn) {
+      const abs = Math.abs(p.errHi);
+      ALL_EVENTS.push({
+        date: p.date, cat: 'temp',
+        severity: abs >= EVT_THRESHOLDS.tempErrBad ? 3 : 2,
+        title: `High temp ${p.errHi > 0 ? 'over' : 'under'}forecast by ${abs.toFixed(1)}°F`,
+        details: [
+          { label: 'Fcst Hi', val: p.fcstHi + '°F' },
+          { label: 'Obs Hi',  val: p.obsHi  + '°F' },
+          { label: 'Error',   val: (p.errHi > 0 ? '+' : '') + p.errHi.toFixed(1) + '°F' },
+          { label: 'Lead',    val: 'D' + p.lead },
+          { label: 'Cond',    val: p.fcstCond || '—' },
+        ],
+        raw: p,
+      });
+    }
+    // Low temp error
+    if (p.errLo !== null && Math.abs(p.errLo) >= EVT_THRESHOLDS.tempErrWarn) {
+      const abs = Math.abs(p.errLo);
+      ALL_EVENTS.push({
+        date: p.date, cat: 'temp',
+        severity: abs >= EVT_THRESHOLDS.tempErrBad ? 3 : 2,
+        title: `Low temp ${p.errLo > 0 ? 'over' : 'under'}forecast by ${abs.toFixed(1)}°F`,
+        details: [
+          { label: 'Fcst Lo', val: p.fcstLo + '°F' },
+          { label: 'Obs Lo',  val: p.obsLo  + '°F' },
+          { label: 'Error',   val: (p.errLo > 0 ? '+' : '') + p.errLo.toFixed(1) + '°F' },
+          { label: 'Lead',    val: 'D' + p.lead },
+          { label: 'Obs Wx',  val: p.obsWx || '—' },
+        ],
+        raw: p,
+      });
+    }
+    // Wind error
+    if (p.errWnd !== null && Math.abs(p.errWnd) >= EVT_THRESHOLDS.windErrWarn) {
+      const abs = Math.abs(p.errWnd);
+      ALL_EVENTS.push({
+        date: p.date, cat: 'wind',
+        severity: abs >= EVT_THRESHOLDS.windErrBad ? 3 : 2,
+        title: `Wind ${p.errWnd > 0 ? 'over' : 'under'}forecast by ${abs.toFixed(1)} mph`,
+        details: [
+          { label: 'Fcst Wind', val: p.fcstWnd?.toFixed(1) + ' mph' },
+          { label: 'Obs Wind',  val: p.obsWnd?.toFixed(0)  + ' mph' },
+          { label: 'Error',     val: (p.errWnd > 0 ? '+' : '') + p.errWnd.toFixed(1) + ' mph' },
+          { label: 'Obs Gust',  val: p.obsGust ? p.obsGust.toFixed(0)+' mph' : '—' },
+          { label: 'Lead',      val: 'D' + p.lead },
+        ],
+        raw: p,
+      });
+    }
+    // PoP miss — forecast rain but none, or missed rain entirely
+    if (p.fcstPop !== null && p.obsPrecip !== null) {
+      const fcstYes = p.fcstPop >= EVT_THRESHOLDS.popThreshold;
+      const obsYes  = p.obsPrecip >= EVT_THRESHOLDS.precipThresh || p.isTrace;
+      if (fcstYes && !obsYes) {
+        ALL_EVENTS.push({
+          date: p.date, cat: 'miss',
+          severity: p.fcstPop >= 60 ? 3 : 2,
+          title: `False alarm — ${p.fcstPop}% PoP forecast, no precip observed`,
+          details: [
+            { label: 'PoP Fcst',   val: p.fcstPop + '%' },
+            { label: 'Obs Precip', val: '0.00"' },
+            { label: 'Lead',       val: 'D' + p.lead },
+            { label: 'Conditions', val: p.fcstCond || '—' },
+          ],
+          raw: p,
+        });
+      }
+      if (!fcstYes && obsYes && p.obsPrecip > EVT_THRESHOLDS.precipThresh) {
+        ALL_EVENTS.push({
+          date: p.date, cat: 'precip',
+          severity: p.obsPrecip >= 0.1 ? 3 : 2,
+          title: `Missed precipitation — ${p.obsPrecip.toFixed(2)}" observed, PoP only ${p.fcstPop}%`,
+          details: [
+            { label: 'PoP Fcst',   val: p.fcstPop + '%' },
+            { label: 'Obs Precip', val: p.obsPrecip.toFixed(2) + '"' },
+            { label: 'Lead',       val: 'D' + p.lead },
+            { label: 'Obs Wx',     val: p.obsWx || '—' },
+          ],
+          raw: p,
+        });
+      }
+    }
+    // Precip observed even when no miss flag (just noteworthy)
+    if (p.obsPrecip !== null && p.obsPrecip >= 0.01 && !ALL_EVENTS.find(e => e.date === p.date && e.cat === 'precip')) {
+      ALL_EVENTS.push({
+        date: p.date, cat: 'precip',
+        severity: p.obsPrecip >= 0.25 ? 3 : 1,
+        title: `Precipitation event — ${p.obsPrecip.toFixed(2)}" observed`,
+        details: [
+          { label: 'Obs Precip', val: p.obsPrecip.toFixed(2) + '"' },
+          { label: 'PoP Fcst',   val: p.fcstPop !== null ? p.fcstPop+'%' : '—' },
+          { label: 'Lead',       val: 'D' + p.lead },
+          { label: 'Obs Wx',     val: p.obsWx || '—' },
+        ],
+        raw: p,
+      });
+    }
+  }
+
+  // ── 2. CLI-based events (records, extreme departures) ─────────────────
+  for (const obs of STATE.cli) {
+    const date   = obs.obs_date;
+    const depHi  = parseFloat(obs.dep_max_f);
+    const depLo  = parseFloat(obs.dep_min_f);
+    const recHi  = parseFloat(obs.record_high_f);
+    const maxTmp = parseFloat(obs.max_temp_f);
+    const minTmp = parseFloat(obs.min_temp_f);
+    const recLo  = parseFloat(obs.record_low_f);
+    const recHiYr= obs.record_high_year;
+    const recLoYr= obs.record_low_year;
+
+    // Record tie/set — observed temp equals or exceeds record
+    if (!isNaN(maxTmp) && !isNaN(recHi) && maxTmp >= recHi) {
+      ALL_EVENTS.push({
+        date, cat: 'record', severity: 3,
+        title: `Record high tied or broken — ${maxTmp}°F (record ${recHi}°F, ${recHiYr})`,
+        details: [
+          { label: 'Observed', val: maxTmp + '°F' },
+          { label: 'Record',   val: recHi + '°F (' + recHiYr + ')' },
+          { label: 'Normal',   val: obs.normal_high_f ? obs.normal_high_f + '°F' : '—' },
+          { label: 'Departure', val: !isNaN(depHi) ? (depHi>0?'+':'')+depHi+'°F' : '—' },
+        ],
+      });
+    }
+    if (!isNaN(minTmp) && !isNaN(recLo) && minTmp <= recLo) {
+      ALL_EVENTS.push({
+        date, cat: 'record', severity: 3,
+        title: `Record low tied or broken — ${minTmp}°F (record ${recLo}°F, ${recLoYr})`,
+        details: [
+          { label: 'Observed', val: minTmp + '°F' },
+          { label: 'Record',   val: recLo + '°F (' + recLoYr + ')' },
+          { label: 'Normal',   val: obs.normal_low_f ? obs.normal_low_f + '°F' : '—' },
+          { label: 'Departure', val: !isNaN(depLo) ? (depLo>0?'+':'')+depLo+'°F' : '—' },
+        ],
+      });
+    }
+    // Large departure from normal (even if not record)
+    if (!isNaN(depHi) && Math.abs(depHi) >= 10 && (isNaN(maxTmp) || isNaN(recHi) || maxTmp < recHi)) {
+      ALL_EVENTS.push({
+        date, cat: 'record', severity: Math.abs(depHi) >= 15 ? 3 : 2,
+        title: `Extreme departure — high temp ${depHi>0?'+':''}${depHi}°F from normal`,
+        details: [
+          { label: 'Observed',   val: !isNaN(maxTmp) ? maxTmp+'°F' : '—' },
+          { label: 'Normal',     val: obs.normal_high_f ? obs.normal_high_f+'°F' : '—' },
+          { label: 'Departure',  val: (depHi>0?'+':'')+depHi+'°F' },
+        ],
+      });
+    }
+  }
+
+  // ── 3. METAR-based events (low visibility, significant WX) ────────────
+  const metarByDate = {};
+  for (const r of STATE.metar) {
+    const d = r.obs_date_local;
+    if (!d) continue;
+    if (!metarByDate[d]) metarByDate[d] = [];
+    metarByDate[d].push(r);
+  }
+
+  for (const [date, rows] of Object.entries(metarByDate)) {
+    const pf = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+    // Low visibility events
+    const lowVis = rows.filter(r => {
+      const v = pf(r.visibility_sm_numeric);
+      return v !== null && v < EVT_THRESHOLDS.visLow;
+    });
+
+    if (lowVis.length) {
+      const minVis = Math.min(...lowVis.map(r => pf(r.visibility_sm_numeric)));
+      const wxCodes = [...new Set(lowVis.map(r => r.wx_string).filter(Boolean))];
+      const veryLow = minVis < EVT_THRESHOLDS.visVeryLow;
+      const isDust  = wxCodes.some(wx => /DU|SA|DS|SS/i.test(wx));
+      const isFog   = wxCodes.some(wx => /FG|BR/i.test(wx));
+
+      ALL_EVENTS.push({
+        date, cat: 'vis',
+        severity: veryLow ? 3 : 2,
+        title: `${isDust ? 'Dust event' : isFog ? 'Fog event' : 'Reduced visibility'} — min ${minVis.toFixed(1)} SM (${lowVis.length} obs)`,
+        details: [
+          { label: 'Min Vis',  val: minVis.toFixed(1) + ' SM' },
+          { label: 'Duration', val: lowVis.length + ' METARs' },
+          { label: 'WX',       val: wxCodes.join(' ') || '—' },
+          { label: 'Flight Cat', val: lowVis.map(r => r.flight_category).filter(Boolean).join(' → ').slice(0,30) || '—' },
+        ],
+      });
+    }
+
+    // Significant WX codes not captured by visibility filter
+    const sigWx = rows.filter(r => r.wx_string && /TS|GR|FC|SQ|FZRA|PL/i.test(r.wx_string));
+    if (sigWx.length) {
+      const codes = [...new Set(sigWx.map(r => r.wx_string))];
+      ALL_EVENTS.push({
+        date, cat: 'precip', severity: 3,
+        title: `Significant weather — ${codes[0]}`,
+        details: [
+          { label: 'WX Codes', val: codes.slice(0,3).join(', ') },
+          { label: 'Obs Count', val: sigWx.length },
+        ],
+      });
+    }
+  }
+
+  // ── Update summary counts ─────────────────────────────────────────────
+  const cats = ['temp','wind','precip','vis','record','miss'];
+  const ids  = ['evtCntTemp','evtCntWind','evtCntPrecip','evtCntVis','evtCntRecord','evtCntMiss'];
+  cats.forEach((cat, i) => {
+    document.getElementById(ids[i]).textContent = ALL_EVENTS.filter(e => e.cat === cat).length;
+  });
+
+  document.getElementById('cntEvents').textContent = ALL_EVENTS.length;
+  document.getElementById('evtInfo').textContent =
+    `${ALL_EVENTS.length} events across ${new Set(ALL_EVENTS.map(e=>e.date)).size} dates`;
+
+  renderEventList();
+}
+
+// ── Render filtered event list ────────────────────────────────────────────
+function renderEventList() {
+  const sortSel = document.getElementById('evtSort').value;
+
+  let events = ALL_EVENTS.filter(e => evtActiveCategories.has(e.cat));
+
+  // Sort
+  if (sortSel === 'date_desc')  events.sort((a,b) => b.date.localeCompare(a.date));
+  else if (sortSel === 'date_asc') events.sort((a,b) => a.date.localeCompare(b.date));
+  else if (sortSel === 'sev_desc') events.sort((a,b) => b.severity - a.severity || b.date.localeCompare(a.date));
+
+  const listEl = document.getElementById('evtList');
+
+  if (!events.length) {
+    listEl.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">◎</div>
+      <div class="empty-title">No Events Found</div>
+      <div class="empty-msg">Try enabling more categories or scanning with more data loaded</div>
+    </div>`;
+    return;
+  }
+
+  const sevLabel = s => s === 3 ? 'HIGH' : s === 2 ? 'MOD' : 'LOW';
+  const sevClass = s => s === 3 ? 'sev-high' : s === 2 ? 'sev-med' : 'sev-low';
+
+  const catBadge = {
+    temp:   'badge-temp',   wind:   'badge-wind',
+    precip: 'badge-precip', vis:    'badge-vis',
+    record: 'badge-record', miss:   'badge-miss',
+  };
+  const catLabel = {
+    temp:'TEMP ERROR', wind:'WIND ERROR', precip:'PRECIP',
+    vis:'VIS EVENT', record:'RECORD', miss:'POP MISS',
+  };
+
+  const dow = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});
+
+  listEl.innerHTML = `<div class="event-list">${events.map((e, idx) => `
+    <div class="event-card cat-${e.cat}" data-idx="${idx}" onclick="evtCardClick(${idx})">
+      <div class="event-card-header">
+        <span class="evt-date">${dow(e.date)} ${e.date}</span>
+        <span class="evt-badge ${catBadge[e.cat]}">${catLabel[e.cat]}</span>
+        <span class="evt-title">${e.title}</span>
+        <span class="evt-severity ${sevClass(e.severity)}">${sevLabel(e.severity)}</span>
+        <span class="evt-drill-link">View Day ▶</span>
+      </div>
+      <div class="evt-detail">
+        ${e.details.map(d => `
+          <div class="evt-detail-item">
+            <span class="evt-detail-label">${d.label}:</span>
+            <span class="evt-detail-val">${d.val}</span>
+          </div>`).join('')}
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── Click event card → jump to METAR drill-down ───────────────────────────
+window.evtCardClick = function(idx) {
+  const filtered = ALL_EVENTS.filter(e => evtActiveCategories.has(e.cat));
+  const evt = filtered[idx];
+  if (!evt) return;
+
+  // Switch to METAR tab and load that date
+  const metarTab = document.querySelector('.tab-btn[data-tab="metar"]');
+  if (metarTab) metarTab.click();
+
+  // Small delay to let the tab render
+  setTimeout(() => {
+    if (STATE.metar.length) {
+      loadDrillDay(evt.date);
+    } else {
+      log(`Navigate to ${evt.date} in Hourly Drill-Down (METAR data not loaded)`, 'warn');
+    }
+  }, 100);
+};
+
+// ── Wire controls ─────────────────────────────────────────────────────────
+document.getElementById('btnRunEvents').addEventListener('click', () => {
+  if (!V.pairs.length && !STATE.cli.length && !STATE.metar.length) {
+    log('Load data first', 'warn'); return;
+  }
+  scanEvents();
+  log(`Event scan complete — ${ALL_EVENTS.length} events flagged`, 'ok');
+});
+
+document.getElementById('evtSort').addEventListener('change', renderEventList);
+
+// ── Auto-scan when verification pairs are built ───────────────────────────
+const _origApplyFiltersP6 = window.applyFilters;
+window.applyFilters = function() {
+  _origApplyFiltersP6();
+  if (V.pairs.length || STATE.cli.length || STATE.metar.length) {
+    scanEvents();
+  }
+};
+</script>
