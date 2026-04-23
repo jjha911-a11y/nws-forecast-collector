@@ -1593,3 +1593,536 @@ window.ingestCLI = function(rows) {
   }
 };
 </script>
+
+<style>
+/* ── Lead Time Analysis styles ────────────────────────────────────────── */
+.lt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1000px) { .lt-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 20px;
+}
+.chart-card .cc-header {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 4px;
+}
+.chart-card .cc-title {
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+}
+.chart-card .cc-sub {
+  font-size: 11px; color: var(--text-dimmer); font-family: var(--sans);
+}
+.chart-wrap {
+  position: relative; height: 280px; margin-top: 14px;
+}
+.chart-wrap-tall {
+  position: relative; height: 340px; margin-top: 14px;
+}
+
+/* Heatmap table */
+.heatmap-wrap {
+  overflow-x: auto;
+}
+.heatmap {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.heatmap th {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); padding: 8px 12px;
+  border-bottom: 2px solid var(--border2);
+  background: var(--surface); white-space: nowrap;
+  text-align: center;
+}
+.heatmap th:first-child { text-align: left; min-width: 140px; }
+.heatmap td {
+  font-family: var(--mono); font-size: 12px;
+  padding: 7px 12px; border-bottom: 1px solid rgba(30,46,61,0.4);
+  text-align: center;
+}
+.heatmap td:first-child {
+  text-align: left; color: var(--text-dim);
+  font-family: var(--cond); font-size: 11px;
+  letter-spacing: 1px; text-transform: uppercase;
+  white-space: nowrap;
+}
+.heatmap td.heat {
+  font-weight: 600; border-radius: 3px;
+  transition: filter 0.15s;
+}
+.heatmap td.heat:hover { filter: brightness(1.3); }
+.heatmap td .n {
+  display: block; font-size: 9px; font-weight: 400;
+  opacity: 0.55; margin-top: 1px;
+}
+.heatmap tr:hover td { background: rgba(30,46,61,0.3); }
+.heatmap tr:hover td.heat { background: unset; }
+
+/* Lead selector tabs */
+.lt-toggle {
+  display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.lt-toggle-btn {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s;
+}
+.lt-toggle-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.lt-toggle-btn.on { background: var(--amber-glow); color: var(--amber); border-color: var(--amber-dim); }
+
+/* Summary row under heatmap */
+.heatmap-legend {
+  display: flex; gap: 20px; padding: 10px 0 2px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.heatmap-legend .hl-item { display: flex; align-items: center; gap: 6px; }
+.hl-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIECE 3 — LEAD TIME ANALYSIS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Replace lead time panel with full UI ──────────────────────────────────
+document.getElementById('panel-leadtime').innerHTML = `
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <div class="filter-group">
+      <span class="filter-label">Variables</span>
+      <div class="lt-toggle" id="ltVarToggle">
+        <button class="lt-toggle-btn on" data-var="hi">Hi Temp</button>
+        <button class="lt-toggle-btn on" data-var="lo">Lo Temp</button>
+        <button class="lt-toggle-btn on" data-var="wind">Wind</button>
+        <button class="lt-toggle-btn on" data-var="sky">Sky Cover</button>
+        <button class="lt-toggle-btn"   data-var="gust">Gust</button>
+      </div>
+    </div>
+    <div class="filter-group" style="margin-left:auto;">
+      <span class="filter-label">Date From</span>
+      <input type="date" class="filter-select" id="ltDateFrom">
+      <span class="filter-label">To</span>
+      <input type="date" class="filter-select" id="ltDateTo">
+      <button class="btn btn-amber" id="btnRunLT">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Two charts side by side -->
+  <div class="lt-grid">
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">MAE by Lead Day</span>
+      </div>
+      <div class="cc-sub">Mean absolute error vs days ahead — lower is better</div>
+      <div class="chart-wrap-tall"><canvas id="ltMAEChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="cc-header">
+        <span class="cc-title">Bias by Lead Day</span>
+      </div>
+      <div class="cc-sub">Mean error (forecast − observed) — zero is perfect</div>
+      <div class="chart-wrap-tall"><canvas id="ltBiasChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Sample size chart -->
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="cc-header">
+      <span class="cc-title">Sample Size by Lead Day</span>
+    </div>
+    <div class="cc-sub">Number of verified pairs at each lead time — low counts mean less reliable statistics</div>
+    <div class="chart-wrap"><canvas id="ltSampleChart"></canvas></div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="chart-card">
+    <div class="cc-header">
+      <span class="cc-title">MAE Heatmap</span>
+      <span class="cc-sub">Variables × Lead Days — darker = larger error</span>
+    </div>
+    <div class="heatmap-wrap" style="margin-top:14px;">
+      <table class="heatmap" id="ltHeatmap">
+        <tbody id="ltHeatmapBody">
+          <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-dimmer);">Run analysis to populate</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="heatmap-legend" id="ltLegend"></div>
+  </div>
+`;
+
+// ── Chart.js global defaults ──────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  grid:   'rgba(30,46,61,0.8)',
+  tick:   '#4a6878',
+  legend: '#6a8898',
+  zero:   'rgba(232,160,32,0.3)',
+};
+
+Chart.defaults.color = CHART_DEFAULTS.tick;
+Chart.defaults.font.family = "'Share Tech Mono', monospace";
+Chart.defaults.font.size = 11;
+
+// ── Variable config ───────────────────────────────────────────────────────
+const LT_VARS = {
+  hi:   { label: 'Hi Temp',   color: '#e84040', unit: '°F',  errFn: p => p.errHi,  maeFn: p => p.errHi },
+  lo:   { label: 'Lo Temp',   color: '#2ec4e8', unit: '°F',  errFn: p => p.errLo,  maeFn: p => p.errLo },
+  wind: { label: 'Wind',      color: '#e8a020', unit: ' mph', errFn: p => p.errWnd, maeFn: p => p.errWnd },
+  sky:  { label: 'Sky Cover', color: '#9b6dff', unit: '%',   errFn: p => p.errSky, maeFn: p => p.errSky },
+  gust: { label: 'Gust',      color: '#3ddc84', unit: ' mph',
+          errFn: p => (p.fcstGust !== null && p.obsGust !== null) ? p.fcstGust - p.obsGust : null,
+          maeFn: p => (p.fcstGust !== null && p.obsGust !== null) ? p.fcstGust - p.obsGust : null },
+};
+
+// ── Chart instances ───────────────────────────────────────────────────────
+let ltMAEChart    = null;
+let ltBiasChart   = null;
+let ltSampleChart = null;
+
+// ── Active variables ──────────────────────────────────────────────────────
+let ltActiveVars = new Set(['hi','lo','wind','sky']);
+
+document.getElementById('ltVarToggle').querySelectorAll('.lt-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.var;
+    if (ltActiveVars.has(v)) { ltActiveVars.delete(v); btn.classList.remove('on'); }
+    else                     { ltActiveVars.add(v);    btn.classList.add('on'); }
+    if (V.pairs.length) runLeadTimeAnalysis();
+  });
+});
+
+// ── Core analysis ─────────────────────────────────────────────────────────
+function groupByLead(pairs) {
+  // Returns { 0: [pairs], 1: [pairs], ... } for D0–D7
+  const groups = {};
+  for (const p of pairs) {
+    if (p.lead === null || p.lead < 0 || p.lead > 7) continue;
+    if (!groups[p.lead]) groups[p.lead] = [];
+    groups[p.lead].push(p);
+  }
+  return groups;
+}
+
+function computeLeadStats(groups, varKey) {
+  const cfg = LT_VARS[varKey];
+  const leads = [0,1,2,3,4,5,6,7];
+  return leads.map(ld => {
+    const pairsAtLead = groups[ld] || [];
+    const errors = pairsAtLead.map(p => cfg.errFn(p)).filter(e => e !== null);
+    if (!errors.length) return { lead: ld, mae: null, bias: null, n: 0 };
+    const absErrors = errors.map(Math.abs);
+    return {
+      lead: ld,
+      mae:  absErrors.reduce((a,b)=>a+b,0) / absErrors.length,
+      bias: errors.reduce((a,b)=>a+b,0) / errors.length,
+      n:    errors.length,
+    };
+  });
+}
+
+function runLeadTimeAnalysis() {
+  if (!V.pairs.length) return;
+
+  // Apply date filters
+  const from = document.getElementById('ltDateFrom').value;
+  const to   = document.getElementById('ltDateTo').value;
+  let pairs  = V.pairs.slice();
+  if (from) pairs = pairs.filter(p => p.date >= from);
+  if (to)   pairs = pairs.filter(p => p.date <= to);
+
+  const groups = groupByLead(pairs);
+  const leads  = [0,1,2,3,4,5,6,7];
+  const labels = leads.map(l => `D${l}`);
+
+  const activeVarKeys = [...ltActiveVars];
+
+  // ── MAE Chart ──────────────────────────────────────────────────────────
+  const maeDatasets = activeVarKeys.map(vk => {
+    const cfg   = LT_VARS[vk];
+    const stats = computeLeadStats(groups, vk);
+    return {
+      label: cfg.label,
+      data:  stats.map(s => s.mae !== null ? +s.mae.toFixed(2) : null),
+      borderColor: cfg.color,
+      backgroundColor: cfg.color + '22',
+      borderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.3,
+      spanGaps: true,
+    };
+  });
+
+  if (ltMAEChart) ltMAEChart.destroy();
+  ltMAEChart = new Chart(document.getElementById('ltMAEChart'), {
+    type: 'line',
+    data: { labels, datasets: maeDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: CHART_DEFAULTS.legend, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const vk  = activeVarKeys[ctx.datasetIndex];
+              const unit = LT_VARS[vk]?.unit || '';
+              return ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2) ?? '—'}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick } },
+        y: {
+          grid: { color: CHART_DEFAULTS.grid },
+          ticks: { color: CHART_DEFAULTS.tick },
+          title: { display: true, text: 'Mean Absolute Error', color: CHART_DEFAULTS.tick },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // ── Bias Chart ─────────────────────────────────────────────────────────
+  const biasDatasets = activeVarKeys.map(vk => {
+    const cfg   = LT_VARS[vk];
+    const stats = computeLeadStats(groups, vk);
+    return {
+      label: cfg.label,
+      data:  stats.map(s => s.bias !== null ? +s.bias.toFixed(2) : null),
+      borderColor: cfg.color,
+      backgroundColor: cfg.color + '22',
+      borderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      tension: 0.3,
+      spanGaps: true,
+    };
+  });
+
+  if (ltBiasChart) ltBiasChart.destroy();
+  ltBiasChart = new Chart(document.getElementById('ltBiasChart'), {
+    type: 'line',
+    data: { labels, datasets: biasDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: CHART_DEFAULTS.legend, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const vk  = activeVarKeys[ctx.datasetIndex];
+              const unit = LT_VARS[vk]?.unit || '';
+              const v = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v !== null ? (v>0?'+':'')+v.toFixed(2) : '—'}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick } },
+        y: {
+          grid: { color: CHART_DEFAULTS.grid },
+          ticks: { color: CHART_DEFAULTS.tick },
+          title: { display: true, text: 'Bias (Fcst − Obs)', color: CHART_DEFAULTS.tick },
+          // Zero line annotation
+          afterDataLimits: scale => {
+            const max = Math.max(Math.abs(scale.min), Math.abs(scale.max), 1);
+            scale.min = -max; scale.max = max;
+          }
+        }
+      },
+      // Draw zero reference line
+      plugins: {
+        annotation: undefined, // no annotation plugin, draw manually
+        legend: { labels: { color: CHART_DEFAULTS.legend, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const vk   = activeVarKeys[ctx.datasetIndex];
+              const unit = LT_VARS[vk]?.unit || '';
+              const v    = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v !== null ? (v>0?'+':'')+v.toFixed(2) : '—'}${unit}`;
+            }
+          }
+        }
+      },
+    },
+    plugins: [{
+      // Draw a zero reference line
+      id: 'zeroline',
+      afterDraw(chart) {
+        const yScale = chart.scales.y;
+        if (!yScale) return;
+        const y = yScale.getPixelForValue(0);
+        const ctx2 = chart.ctx;
+        ctx2.save();
+        ctx2.beginPath();
+        ctx2.moveTo(chart.chartArea.left, y);
+        ctx2.lineTo(chart.chartArea.right, y);
+        ctx2.strokeStyle = CHART_DEFAULTS.zero;
+        ctx2.lineWidth = 1.5;
+        ctx2.setLineDash([4, 4]);
+        ctx2.stroke();
+        ctx2.restore();
+      }
+    }]
+  });
+
+  // ── Sample size chart ──────────────────────────────────────────────────
+  // Use hi temp as representative sample size
+  const sampleData = leads.map(ld => {
+    const pairsAtLead = groups[ld] || [];
+    return pairsAtLead.filter(p => p.errHi !== null).length;
+  });
+
+  if (ltSampleChart) ltSampleChart.destroy();
+  ltSampleChart = new Chart(document.getElementById('ltSampleChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Pairs (Hi Temp)',
+        data: sampleData,
+        backgroundColor: leads.map(l => `rgba(232,160,32,${0.15 + l * 0.07})`),
+        borderColor:     leads.map(l => `rgba(232,160,32,${0.4  + l * 0.06})`),
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} pairs` } }
+      },
+      scales: {
+        x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick } },
+        y: {
+          grid: { color: CHART_DEFAULTS.grid },
+          ticks: { color: CHART_DEFAULTS.tick, precision: 0 },
+          title: { display: true, text: 'Verified Pairs', color: CHART_DEFAULTS.tick },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // ── Heatmap ────────────────────────────────────────────────────────────
+  renderHeatmap(groups, leads);
+}
+
+// ── Heatmap renderer ──────────────────────────────────────────────────────
+function heatColor(val, maxVal) {
+  if (val === null || maxVal === 0) return { bg: 'transparent', fg: 'var(--text-dimmer)' };
+  const pct = Math.min(val / maxVal, 1);
+  // Amber-to-red gradient
+  const r = Math.round(140 + 112 * pct);
+  const g = Math.round(160 - 120 * pct);
+  const b = Math.round(32  -  32 * pct);
+  const alpha = 0.15 + 0.7 * pct;
+  return {
+    bg: `rgba(${r},${g},${b},${alpha})`,
+    fg: pct > 0.5 ? '#ffffff' : 'var(--text)',
+  };
+}
+
+function renderHeatmap(groups, leads) {
+  const allVarKeys = Object.keys(LT_VARS);
+
+  // Compute all MAE values to find global max per variable for color scaling
+  const statsAll = {};
+  for (const vk of allVarKeys) {
+    statsAll[vk] = computeLeadStats(groups, vk);
+  }
+
+  // Max MAE per variable (for normalization)
+  const maxMAE = {};
+  for (const vk of allVarKeys) {
+    const maes = statsAll[vk].map(s => s.mae).filter(v => v !== null);
+    maxMAE[vk] = maes.length ? Math.max(...maes) : 1;
+  }
+
+  // Build header
+  let headerHTML = '<thead><tr><th>Variable</th>';
+  for (const l of leads) headerHTML += `<th>D${l}</th>`;
+  headerHTML += '<th>Avg MAE</th></tr></thead>';
+
+  // Build rows
+  let bodyHTML = '<tbody>';
+  for (const vk of allVarKeys) {
+    const cfg   = LT_VARS[vk];
+    const stats = statsAll[vk];
+    bodyHTML += `<tr>`;
+    bodyHTML += `<td><span style="color:${cfg.color};margin-right:6px;">▶</span>${cfg.label}</td>`;
+
+    const maesForRow = [];
+    for (const s of stats) {
+      if (s.mae === null) {
+        bodyHTML += `<td class="heat" style="color:var(--text-dimmer)">—</td>`;
+      } else {
+        maesForRow.push(s.mae);
+        const { bg, fg } = heatColor(s.mae, maxMAE[vk]);
+        bodyHTML += `<td class="heat" style="background:${bg};color:${fg};">
+          ${s.mae.toFixed(1)}${cfg.unit.trim()}
+          <span class="n">n=${s.n}</span>
+        </td>`;
+      }
+    }
+
+    // Row average
+    const avg = maesForRow.length ? maesForRow.reduce((a,b)=>a+b,0)/maesForRow.length : null;
+    bodyHTML += avg !== null
+      ? `<td style="color:var(--amber);font-weight:600;">${avg.toFixed(1)}${cfg.unit.trim()}</td>`
+      : `<td style="color:var(--text-dimmer)">—</td>`;
+    bodyHTML += `</tr>`;
+  }
+  bodyHTML += '</tbody>';
+
+  document.getElementById('ltHeatmap').innerHTML = headerHTML + bodyHTML;
+
+  // Legend
+  document.getElementById('ltLegend').innerHTML = `
+    <div class="hl-item"><div class="hl-swatch" style="background:rgba(140,160,32,0.2)"></div> Low error</div>
+    <div class="hl-item"><div class="hl-swatch" style="background:rgba(200,80,10,0.6)"></div> High error</div>
+    <div class="hl-item" style="color:var(--text-dimmer)">n = number of verified pairs at that lead time</div>
+  `;
+}
+
+// ── Wire controls ─────────────────────────────────────────────────────────
+document.getElementById('btnRunLT').addEventListener('click', () => {
+  if (!V.pairs.length) { log('Run verification first (Fcst vs CLI tab)', 'warn'); return; }
+  runLeadTimeAnalysis();
+});
+
+['ltDateFrom','ltDateTo'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => { if (V.pairs.length) runLeadTimeAnalysis(); });
+});
+
+// ── Auto-run when pairs are built ─────────────────────────────────────────
+// Extend the existing pair-build hooks to also trigger lead time
+const _origApplyFilters = applyFilters;
+window.applyFilters = function() {
+  _origApplyFilters();
+  // Sync date range to lead time tab
+  const from = document.getElementById('vDateFrom')?.value;
+  const to   = document.getElementById('vDateTo')?.value;
+  if (from) { const el = document.getElementById('ltDateFrom'); if(el) el.value = from; }
+  if (to)   { const el = document.getElementById('ltDateTo');   if(el) el.value = to; }
+  if (V.pairs.length) runLeadTimeAnalysis();
+};
+</script>
