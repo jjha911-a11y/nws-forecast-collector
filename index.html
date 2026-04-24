@@ -99,7 +99,7 @@ body::before {
 
 .header-meta { display: flex; flex-direction: column; }
 .header-meta .title { font-family: var(--cond); font-size: 16px; font-weight: 600; letter-spacing: 1px; color: var(--text); }
-.header-meta .coords { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.header-meta .coords { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-top: 2px; }
 
 .header-status { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 
@@ -107,7 +107,7 @@ body::before {
   display: flex; align-items: center; gap: 6px;
   background: var(--surface); border: 1px solid var(--border2);
   border-radius: 20px; padding: 4px 12px;
-  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  font-family: var(--mono); font-size: 13px; color: var(--text-dim);
 }
 .status-pill .dot {
   width: 7px; height: 7px; border-radius: 50%;
@@ -130,14 +130,14 @@ body::before {
   flex-wrap: wrap;
 }
 .datasource-bar .label {
-  font-family: var(--cond); font-size: 11px; letter-spacing: 2px;
+  font-family: var(--cond); font-size: 13px; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
 }
 .ds-group { display: flex; align-items: center; gap: 8px; }
 .ds-name {
-  font-family: var(--mono); font-size: 11px; color: var(--amber);
+  font-family: var(--mono); font-size: 13px; color: var(--amber);
   background: var(--amber-glow2); border: 1px solid var(--amber-dim);
-  border-radius: var(--radius); padding: 2px 8px;
+  border-radius: var(--radius); padding: 3px 10px;
 }
 .btn {
   font-family: var(--cond); font-size: 12px; font-weight: 600;
@@ -183,8 +183,8 @@ input[type="file"] { display: none; }
 .tab-btn {
   height: var(--tab-h);
   padding: 0 20px;
-  font-family: var(--cond); font-size: 13px; font-weight: 600;
-  letter-spacing: 1.5px; text-transform: uppercase;
+  font-family: var(--cond); font-size: 14px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
   color: var(--text-dim); cursor: pointer;
   border: none; background: transparent;
   border-bottom: 2px solid transparent;
@@ -196,7 +196,7 @@ input[type="file"] { display: none; }
 .tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
 .tab-btn .tab-count {
   background: var(--surface2); border-radius: 10px;
-  padding: 1px 7px; font-size: 10px; font-family: var(--mono);
+  padding: 2px 8px; font-size: 12px; font-family: var(--mono);
   color: var(--text-dim);
 }
 .tab-btn.active .tab-count { background: var(--amber-glow); color: var(--amber); }
@@ -219,8 +219,8 @@ input[type="file"] { display: none; }
   margin-bottom: 16px;
 }
 .card-title {
-  font-family: var(--cond); font-size: 14px; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--cond); font-size: 15px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
 }
 .card-badge {
   font-family: var(--mono); font-size: 10px;
@@ -254,8 +254,8 @@ input[type="file"] { display: none; }
 .stat-tile.purple::before{ background: linear-gradient(90deg, var(--purple), transparent); }
 
 .stat-label {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
-  letter-spacing: 2.5px; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
   margin-bottom: 8px;
 }
 .stat-value {
@@ -266,7 +266,7 @@ input[type="file"] { display: none; }
 .stat-tile.green .stat-value  { color: var(--green); }
 .stat-tile.purple .stat-value { color: var(--purple); }
 .stat-sub {
-  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  font-family: var(--mono); font-size: 13px; color: var(--text-dim);
   margin-top: 6px;
 }
 
@@ -286,7 +286,7 @@ input[type="file"] { display: none; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .freshness-item .fi-label {
-  font-family: var(--cond); font-size: 10px; letter-spacing: 2px;
+  font-family: var(--cond); font-size: 12px; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--text-dim);
 }
 .freshness-item .fi-file {
@@ -1043,8 +1043,8 @@ try {
 }
 .filter-group { display: flex; align-items: center; gap: 8px; }
 .filter-label {
-  font-family: var(--cond); font-size: 11px; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
   white-space: nowrap;
 }
 .filter-select {
@@ -1070,15 +1070,15 @@ try {
   padding: 12px 14px;
 }
 .metric-tile .mt-label {
-  font-family: var(--cond); font-size: 9px; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--cond); font-size: 12px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
   margin-bottom: 4px;
 }
 .metric-tile .mt-value {
-  font-family: var(--mono); font-size: 20px; line-height: 1;
+  font-family: var(--mono); font-size: 22px; line-height: 1;
 }
 .metric-tile .mt-sub {
-  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
   margin-top: 3px;
 }
 .warm { color: var(--red); }
@@ -1622,11 +1622,11 @@ window.ingestCLI = function(rows) {
   margin-bottom: 4px;
 }
 .chart-card .cc-title {
-  font-family: var(--cond); font-size: 13px; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  font-family: var(--cond); font-size: 14px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
 }
 .chart-card .cc-sub {
-  font-size: 11px; color: var(--text-dimmer); font-family: var(--sans);
+  font-size: 13px; color: var(--text-dim); font-family: var(--sans);
 }
 .chart-wrap {
   position: relative; height: 280px; margin-top: 14px;
@@ -2198,7 +2198,7 @@ window.applyFilters = function() {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 .gauge-label {
-  font-family: var(--cond); font-size: 10px; letter-spacing: 1.5px;
+  font-family: var(--cond); font-size: 12px; letter-spacing: 1px;
   text-transform: uppercase; color: var(--text-dim);
 }
 .gauge-value {
@@ -2228,10 +2228,10 @@ window.applyFilters = function() {
   font-family: var(--mono); font-size: 28px; line-height: 1;
 }
 .pm-cell .pm-label {
-  font-family: var(--cond); font-size: 10px; letter-spacing: 1.5px;
+  font-family: var(--cond); font-size: 12px; letter-spacing: 1px;
   text-transform: uppercase; color: var(--text-dim); margin-top: 6px;
 }
-.pm-cell .pm-sub { font-family: var(--mono); font-size: 10px; color: var(--text-dimmer); }
+.pm-cell .pm-sub { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
 .pm-hit    { border-color: var(--green-dim); }
 .pm-miss   { border-color: var(--red-dim); }
 .pm-fa     { border-color: var(--amber-dim); }
@@ -2757,8 +2757,8 @@ window.applyFilters = function() {
 .fcst-snap-item .fsi-vals {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
 }
-.fsi-val { font-family: var(--mono); font-size: 11px; }
-.fsi-label { font-family: var(--cond); font-size: 9px; color: var(--text-dimmer); letter-spacing: 1px; text-transform: uppercase; }
+.fsi-val { font-family: var(--mono); font-size: 13px; }
+.fsi-label { font-family: var(--cond); font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
 
 /* Summary stat strip */
 .day-summary-strip {
@@ -2770,8 +2770,8 @@ window.applyFilters = function() {
   background: var(--bg3); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 8px 10px; text-align: center;
 }
-.dss-label { font-family: var(--cond); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer); }
-.dss-value { font-family: var(--mono); font-size: 16px; margin-top: 2px; }
+.dss-label { font-family: var(--cond); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
+.dss-value { font-family: var(--mono); font-size: 18px; margin-top: 2px; }
 
 /* Wind direction indicator */
 .wind-dir-wrap { display: flex; align-items: center; gap: 6px; }
@@ -3448,11 +3448,11 @@ window.ingestMETAR = function(rows) {
 }
 .evt-bucket:hover { border-color: var(--amber-dim); }
 .evt-bucket .eb-count {
-  font-family: var(--mono); font-size: 22px; line-height: 1;
+  font-family: var(--mono); font-size: 26px; line-height: 1;
 }
 .evt-bucket .eb-label {
-  font-family: var(--cond); font-size: 9px; letter-spacing: 1.5px;
-  text-transform: uppercase; color: var(--text-dimmer); margin-top: 4px;
+  font-family: var(--cond); font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text-dim); margin-top: 4px;
 }
 </style>
 
