@@ -1110,8 +1110,13 @@ try {
 .verify-table td {
   font-family: var(--mono); font-size: 13px;
   padding: 7px 10px; border-bottom: 1px solid rgba(30,46,61,0.5);
+  /* Base color — err-good/warn/bad classes override this */
   color: var(--text);
 }
+/* Restore error cell colors — must come AFTER the td rule */
+.verify-table td.err-good { color: var(--green); }
+.verify-table td.err-warn { color: var(--amber); }
+.verify-table td.err-bad  { color: var(--red); }
 .verify-table td.num { text-align: right; }
 .verify-table tr:hover td { background: var(--surface2); }
 .verify-table tr:last-child td { border-bottom: none; }
@@ -1505,8 +1510,8 @@ function renderTable() {
       <td class="num">${obsSkyStr}</td>
       <td class="num" style="color:var(--purple)">${p.fcstPop !== null ? p.fcstPop+'%' : '—'}</td>
       <td class="num">${precipStr}</td>
-      <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.fcstCond}</td>
-      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.obsWx || '—'}</td>
+      <td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.fcstCond}</td>
+      <td style="font-size:13px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">${p.obsWx || '—'}</td>
     </tr>`;
   }).join('');
 }
