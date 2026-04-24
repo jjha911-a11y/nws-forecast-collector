@@ -76,3 +76,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-04-24T07:07:05+00:00,2026-04-24T10:52:06Z,2026-04-28,4,83,60,80.0,58.0,15.0,20.7,SE,27.3,23,5,0.0,0,22,,Mostly Sunny,Partly Cloudy,
 2026-04-24T07:07:05+00:00,2026-04-24T10:52:06Z,2026-04-29,5,84,58,80.0,63.0,10.4,16.1,SSW,27.9,19,15,0.0,4,31,,Mostly Sunny then Slight Chance Rain Showers,Slight Chance Rain Showers,
 2026-04-24T07:07:05+00:00,2026-04-24T10:52:06Z,2026-04-30,6,85,,81.0,59.0,5.8,10.4,WSW,33.7,28,15,0.02,2,16,,Sunny,,slight_chance:rain_showers:light
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-24,0,83,58,79.0,57.0,12.7,20.7,SW,15.1,13,4,0.0,1,40,,Partly Sunny,Mostly Clear,
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-25,1,79,55,79.0,59.0,19.6,27.6,SW,27.6,23,46,0.0,0,35,,Partly Sunny then Scattered Rain Showers,Scattered Rain Showers,
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-26,2,73,52,76.0,56.0,18.4,25.3,SW,35.4,36,46,0.02,8,47,,Isolated Rain Showers then Mostly Sunny,Mostly Clear,scattered:rain_showers:light|isolated:rain_showers:light
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-27,3,77,56,77.0,52.0,13.8,19.6,SSW,33.5,37,1,0.0,1,14,,Sunny,Mostly Clear,
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-28,4,83,60,79.0,57.0,13.8,21.9,SSE,27.1,23,7,0.0,0,18,,Sunny,Partly Cloudy,
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-29,5,83,60,80.0,62.0,6.9,11.5,S,26.0,18,9,0.0,4,38,,Mostly Sunny,Mostly Clear,
+2026-04-24T20:13:04+00:00,2026-04-24T20:32:13Z,2026-04-30,6,84,61,80.0,61.0,5.8,10.4,WSW,32.7,25,7,0.0,4,21,,Sunny,Mostly Clear,
