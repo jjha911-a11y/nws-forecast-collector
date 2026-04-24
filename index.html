@@ -15,8 +15,8 @@
   --bg:          #080c10;
   --bg2:         #0d1318;
   --bg3:         #111820;
-  --surface:     #141d26;
-  --surface2:    #1a2633;
+  --surface:     #182330;
+  --surface2:    #1e2e3e;
   --border:      #1e2e3d;
   --border2:     #243546;
 
@@ -32,9 +32,9 @@
   --red-dim:     #7a1a1a;
   --purple:      #9b6dff;
 
-  --text:        #e8f4ff;
-  --text-dim:    #8ab4c8;
-  --text-dimmer: #5a7a8a;
+  --text:        #f0f8ff;
+  --text-dim:    #a8cce0;
+  --text-dimmer: #7a9cb0;
   --mono:        'Share Tech Mono', monospace;
   --sans:        'Barlow', sans-serif;
   --cond:        'Barlow Condensed', sans-serif;
@@ -266,7 +266,7 @@ input[type="file"] { display: none; }
 .stat-tile.green .stat-value  { color: var(--green); }
 .stat-tile.purple .stat-value { color: var(--purple); }
 .stat-sub {
-  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
   margin-top: 6px;
 }
 
@@ -293,7 +293,7 @@ input[type="file"] { display: none; }
   font-family: var(--mono); font-size: 13px; color: var(--amber);
 }
 .freshness-item .fi-stat {
-  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  font-family: var(--mono); font-size: 12px; color: var(--text);
 }
 .freshness-item .fi-age {
   font-family: var(--mono); font-size: 13px;
@@ -346,7 +346,7 @@ input[type="file"] { display: none; }
 .log-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 .log-line { display: flex; gap: 10px; }
 .log-time { color: var(--text-dimmer); min-width: 80px; }
-.log-msg { color: var(--text-dim); }
+.log-msg { color: var(--text); }
 .log-msg.ok   { color: var(--green); }
 .log-msg.warn { color: var(--amber); }
 .log-msg.err  { color: var(--red); }
@@ -365,7 +365,7 @@ input[type="file"] { display: none; }
   letter-spacing: 2px; text-transform: uppercase;
   color: var(--text-dim); margin-bottom: 8px;
 }
-.empty-state .empty-msg { font-size: 13px; color: var(--text-dimmer); }
+.empty-state .empty-msg { font-size: 13px; color: var(--text-dim); }
 
 /* ── Spinner ───────────────────────────────────────────────────────────── */
 .spinner {
@@ -431,7 +431,7 @@ input[type="file"] { display: none; }
 .fcst-day:hover { border-color: var(--amber-dim); }
 .fcst-day .fd-date {
   font-family: var(--cond); font-size: 11px; letter-spacing: 1px;
-  color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px;
+  color: var(--text); text-transform: uppercase; margin-bottom: 4px;
 }
 .fcst-day .fd-lead {
   font-family: var(--mono); font-size: 10px;
@@ -440,13 +440,13 @@ input[type="file"] { display: none; }
 .fcst-day .fd-hi { font-family: var(--mono); font-size: 20px; color: var(--amber); }
 .fcst-day .fd-lo { font-family: var(--mono); font-size: 15px; color: var(--cyan); margin-top: 3px; }
 .fcst-day .fd-wind {
-  font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--text); margin-top: 6px;
 }
 .fcst-day .fd-pop {
   font-family: var(--mono); font-size: 11px; color: var(--purple); margin-top: 3px;
 }
 .fcst-day .fd-cond {
-  font-size: 11px; color: var(--text-dim); margin-top: 6px;
+  font-size: 11px; color: var(--text); margin-top: 6px;
   /* Word wrap — no ellipsis, let it grow */
   white-space: normal; overflow: visible;
   font-family: var(--sans); line-height: 1.35;
@@ -877,7 +877,7 @@ function updateCoverage() {
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--mono); font-size:12px;">
       <div>
         <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Date Range</div>
-        <div style="color:var(--text);">${sorted[0]} → ${sorted[sorted.length-1]}</div>
+        <div style="color:var(--text);font-size:13px;">${sorted[0]} → ${sorted[sorted.length-1]}</div>
       </div>
       <div>
         <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Verifiable Days</div>
@@ -1110,6 +1110,7 @@ try {
 .verify-table td {
   font-family: var(--mono); font-size: 13px;
   padding: 7px 10px; border-bottom: 1px solid rgba(30,46,61,0.5);
+  color: var(--text);
 }
 .verify-table td.num { text-align: right; }
 .verify-table tr:hover td { background: var(--surface2); }
@@ -1654,9 +1655,10 @@ window.ingestCLI = function(rows) {
   font-family: var(--mono); font-size: 12px;
   padding: 7px 12px; border-bottom: 1px solid rgba(30,46,61,0.4);
   text-align: center;
+  color: var(--text);
 }
 .heatmap td:first-child {
-  text-align: left; color: var(--text-dim);
+  text-align: left; color: var(--text);
   font-family: var(--cond); font-size: 11px;
   letter-spacing: 1px; text-transform: uppercase;
   white-space: nowrap;
@@ -2159,9 +2161,10 @@ window.applyFilters = function() {
   font-family: var(--mono); font-size: 12px;
   padding: 8px 12px; border-bottom: 1px solid rgba(30,46,61,0.4);
   text-align: right;
+  color: var(--text);
 }
 .breakdown-table td:first-child {
-  text-align: left; color: var(--text-dim);
+  text-align: left; color: var(--text);
   font-family: var(--cond); font-size: 11px;
   letter-spacing: 1px; text-transform: uppercase;
 }
@@ -2724,6 +2727,7 @@ window.applyFilters = function() {
   font-family: var(--mono); font-size: 12px;
   padding: 5px 8px; border-bottom: 1px solid rgba(30,46,61,0.3);
   text-align: right;
+  color: var(--text);
 }
 .metar-obs-table td:first-child { text-align: left; }
 .metar-obs-table tr:hover td { background: var(--surface2); }
@@ -3414,7 +3418,7 @@ window.ingestMETAR = function(rows) {
   font-family: var(--mono); font-size: 11px; color: var(--text-dim);
 }
 .evt-detail-item { display: flex; gap: 6px; }
-.evt-detail-label { color: var(--text-dimmer); }
+.evt-detail-label { color: var(--text-dim); }
 .evt-detail-val   { color: var(--text); }
 
 /* Drill link */
