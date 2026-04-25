@@ -3028,8 +3028,8 @@ function renderDrillCharts(rows, dateStr) {
     {
       label: 'Observed Temp (°F)',
       data: temps,
-      borderColor: '#e84040',
-      backgroundColor: 'rgba(232,64,64,0.08)',
+      borderColor: '#c8dce8',
+      backgroundColor: 'rgba(200,220,232,0.06)',
       borderWidth: 2.5,
       pointRadius: 3,
       tension: 0.3,
@@ -3096,8 +3096,18 @@ function renderDrillCharts(rows, dateStr) {
       windDatasets.push({
         label: `Fcst Wind (D${bestFcst.lead_days})`,
         data: rows.map(() => fcstWind),
-        borderColor: 'rgba(232,160,32,0.35)',
+        borderColor: 'rgba(232,160,32,0.5)',
         borderWidth: 1.5, borderDash: [6,3],
+        pointRadius: 0, tension: 0,
+      });
+    }
+    const fcstGust = pf(bestFcst.max_wind_gust_mph);
+    if (fcstGust !== null) {
+      windDatasets.push({
+        label: `Fcst Gust (D${bestFcst.lead_days})`,
+        data: rows.map(() => fcstGust),
+        borderColor: 'rgba(61,220,132,0.5)',
+        borderWidth: 1.5, borderDash: [4,4],
         pointRadius: 0, tension: 0,
       });
     }
