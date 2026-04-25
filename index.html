@@ -2822,8 +2822,8 @@ document.getElementById('panel-metar').innerHTML = `
       <!-- Temp + Dewpoint chart -->
       <div class="chart-card" style="margin-bottom:12px;">
         <div class="cc-header">
-          <span class="cc-title">Temperature &amp; Dewpoint</span>
-          <span class="cc-sub" style="margin-left:8px;">°F · hourly METAR observations vs forecast</span>
+          <span class="cc-title">Temperature</span>
+          <span class="cc-sub" style="margin-left:8px;">°F · hourly METAR observed temp with forecast high/low reference lines</span>
         </div>
         <div class="chart-wrap-tall"><canvas id="drillTempChart"></canvas></div>
       </div>
@@ -3026,21 +3026,11 @@ function renderDrillCharts(rows, dateStr) {
 
   const tempDatasets = [
     {
-      label: 'Temp (°F)',
+      label: 'Observed Temp (°F)',
       data: temps,
       borderColor: '#e84040',
-      backgroundColor: 'rgba(232,64,64,0.1)',
-      borderWidth: 2,
-      pointRadius: 3,
-      tension: 0.3,
-      fill: false,
-    },
-    {
-      label: 'Dewpoint (°F)',
-      data: dewpts,
-      borderColor: '#2ec4e8',
-      backgroundColor: 'rgba(46,196,232,0.1)',
-      borderWidth: 2,
+      backgroundColor: 'rgba(232,64,64,0.08)',
+      borderWidth: 2.5,
       pointRadius: 3,
       tension: 0.3,
       fill: false,
@@ -3055,7 +3045,7 @@ function renderDrillCharts(rows, dateStr) {
       tempDatasets.push({
         label: `Fcst Hi (D${bestFcst.lead_days})`,
         data: rows.map(() => fcstHi),
-        borderColor: 'rgba(232,64,64,0.4)',
+        borderColor: 'rgba(232,64,64,0.5)',
         borderWidth: 1.5, borderDash: [6,3],
         pointRadius: 0, tension: 0,
       });
@@ -3064,7 +3054,7 @@ function renderDrillCharts(rows, dateStr) {
       tempDatasets.push({
         label: `Fcst Lo (D${bestFcst.lead_days})`,
         data: rows.map(() => fcstLo),
-        borderColor: 'rgba(46,196,232,0.4)',
+        borderColor: 'rgba(46,196,232,0.6)',
         borderWidth: 1.5, borderDash: [6,3],
         pointRadius: 0, tension: 0,
       });
