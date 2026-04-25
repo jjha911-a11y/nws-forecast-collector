@@ -1,0 +1,52 @@
+name: Import Excel Historical Data (one-time)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests openpyxl
+
+      - name: Pull latest data
+        run: git pull --rebase origin main
+
+      - name: Import forecast snapshots
+        run: |
+          python import_excel_forecasts.py \
+            --excel forecast-verification-all-2026-04-25.xlsx \
+            --csv data/forecasts.csv
+
+      - name: Import CLI observations
+        run: |
+          python import_excel_observations.py \
+            --excel forecast-verification-all-2026-04-25.xlsx \
+            --csv data/observations_cli.csv
+
+      - name: Commit imported data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/forecasts.csv data/observations_cli.csv
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "import historical data from Excel export"
+            git push --force-with-lease
+          fi
