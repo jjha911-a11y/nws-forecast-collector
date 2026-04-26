@@ -4197,10 +4197,16 @@ function initCliTab() {
   document.getElementById('cliDateCount').textContent = cliAllDates.length;
   buildCliDateList();
 
-  // Default to yesterday's date (CLI covers the previous calendar day)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
+  // Default to yesterday's date (CLI covers the previous calendar day).
+  // Use LOCAL date methods (getFullYear/Month/Date) not toISOString() which
+  // returns UTC — after 5 PM PDT, UTC is already the next day, which would
+  // make "yesterday UTC" = today local, showing the wrong date.
+  const now = new Date();
+  const localYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yy = localYesterday.getFullYear();
+  const mm = String(localYesterday.getMonth() + 1).padStart(2, '0');
+  const dd = String(localYesterday.getDate()).padStart(2, '0');
+  const yStr = `${yy}-${mm}-${dd}`;
 
   // Find yesterday in the list, or fall back to most recent available
   const target = cliAllDates.find(r => r.obs_date === yStr) || cliAllDates[0];
@@ -4394,18 +4400,14 @@ function loadCliRecord(dateStr) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
 
       <div class="cli-section">
-        <div class="cli-section-header"><span class="csh-icon">☀</span> Sky &amp; Sunshine</div>
+        <div class="cli-section-header"><span class="csh-icon">☁</span> Sky Cover</div>
         <div class="cli-metric-grid">
           <div class="cli-metric">
             <div class="cm-label">Avg Sky Cover</div>
             <div class="cm-value" style="color:var(--purple);">${obs.sky_cover_tenths !== '' ? obs.sky_cover_tenths + '/10' : '—'}</div>
             <div class="cm-sub">${obs.sky_cover_tenths !== '' ? Math.round(pf2(obs.sky_cover_tenths) * 10) + '% coverage' : ''}</div>
           </div>
-          <div class="cli-metric">
-            <div class="cm-label">Sunshine</div>
-            <div class="cm-value" style="color:var(--amber);">${obs.sunshine_pct !== '' ? obs.sunshine_pct + '%' : '—'}</div>
-            <div class="cm-sub">${obs.sunshine_hours !== '' ? obs.sunshine_hours + ' hrs' : 'possible'}</div>
-          </div>
+
         </div>
       </div>
 
