@@ -545,6 +545,9 @@ input[type="file"] { display: none; }
   <button class="tab-btn" data-tab="metar">
     Hourly Drill-Down
   </button>
+  <button class="tab-btn" data-tab="cli">
+    CLI Record
+  </button>
   <button class="tab-btn" data-tab="events">
     Event Tracker <span class="tab-count" id="cntEvents">—</span>
   </button>
@@ -695,6 +698,14 @@ input[type="file"] { display: none; }
 </section>
 
 <!-- ── EVENTS (placeholder) ──────────────────────────────────────────── -->
+<section class="panel" id="panel-cli">
+  <div class="empty-state">
+    <div class="empty-icon">◈</div>
+    <div class="empty-title">CLI Record Viewer</div>
+    <div class="empty-msg">Loading…</div>
+  </div>
+</section>
+
 <section class="panel" id="panel-events">
   <div class="empty-state">
     <div class="empty-icon">◑</div>
@@ -3893,5 +3904,598 @@ window.applyFilters = function() {
   if (V.pairs.length || STATE.cli.length || STATE.metar.length) {
     scanEvents();
   }
+};
+</script>
+
+<style>
+/* ── CLI Record Viewer styles ─────────────────────────────────────────── */
+.cli-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) { .cli-layout { grid-template-columns: 1fr; } }
+
+/* Date list sidebar */
+.cli-date-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+.cli-date-list-header {
+  padding: 12px 14px;
+  font-family: var(--cond); font-size: 12px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  flex-shrink: 0;
+}
+.cli-date-search {
+  width: 100%; padding: 8px 12px;
+  background: var(--bg); border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  flex-shrink: 0;
+}
+.cli-date-search:focus { outline: none; border-bottom-color: var(--amber-dim); }
+.cli-date-search::placeholder { color: var(--text-dimmer); }
+.cli-date-items {
+  overflow-y: auto;
+  flex: 1;
+}
+.cli-date-item {
+  padding: 9px 14px;
+  font-family: var(--mono); font-size: 12px;
+  cursor: pointer; transition: background 0.1s;
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid rgba(30,46,61,0.3);
+  color: var(--text);
+}
+.cli-date-item:hover { background: var(--surface2); }
+.cli-date-item.active { background: var(--amber-glow); color: var(--amber); }
+.cli-date-item .cdi-date { font-weight: 600; }
+.cli-date-item .cdi-temp {
+  font-size: 11px; color: var(--text-dim);
+}
+.cli-date-item.active .cdi-temp { color: var(--amber-dim); }
+.cli-date-item.imported {
+  border-left: 2px solid var(--border2);
+}
+
+/* CLI record display */
+.cli-record {
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* Section blocks */
+.cli-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  overflow: hidden;
+}
+.cli-section-header {
+  background: var(--bg3);
+  padding: 10px 16px;
+  font-family: var(--cond); font-size: 12px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.cli-section-header .csh-icon {
+  font-size: 14px; opacity: 0.7;
+}
+
+/* Metric grid inside sections */
+.cli-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+.cli-metric {
+  background: var(--surface);
+  padding: 12px 14px;
+}
+.cli-metric .cm-label {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 4px;
+}
+.cli-metric .cm-value {
+  font-family: var(--mono); font-size: 18px; line-height: 1;
+}
+.cli-metric .cm-sub {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-dim); margin-top: 3px;
+}
+.cli-metric .cm-time {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-dimmer); margin-top: 2px;
+}
+
+/* Wide metric (spans 2 cols) */
+.cli-metric.wide {
+  grid-column: span 2;
+}
+
+/* Departure coloring */
+.dep-warm { color: var(--red); }
+.dep-cool { color: var(--cyan); }
+.dep-norm { color: var(--green); }
+
+/* Record indicator */
+.record-badge {
+  display: inline-block; font-family: var(--cond); font-size: 9px;
+  font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  background: rgba(46,196,232,0.15); color: var(--cyan);
+  border: 1px solid var(--cyan-dim); border-radius: 3px;
+  padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+
+/* Normals row */
+.cli-normals-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px; background: var(--border);
+}
+
+/* Precip table inside section */
+.cli-precip-table { width: 100%; border-collapse: collapse; }
+.cli-precip-table th {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  padding: 8px 14px; text-align: right; background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.cli-precip-table th:first-child { text-align: left; }
+.cli-precip-table td {
+  font-family: var(--mono); font-size: 13px;
+  padding: 9px 14px; text-align: right;
+  border-bottom: 1px solid rgba(30,46,61,0.3);
+  color: var(--text);
+}
+.cli-precip-table td:first-child {
+  text-align: left; color: var(--text-dim);
+  font-family: var(--cond); font-size: 11px;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.cli-precip-table tr:last-child td { border-bottom: none; }
+
+/* Source badge */
+.cli-source-badge {
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 10px;
+  background: var(--surface2); color: var(--text-dimmer);
+  border: 1px solid var(--border2);
+}
+.cli-source-badge.imported {
+  background: rgba(155,109,255,0.1); color: var(--purple);
+  border-color: rgba(155,109,255,0.3);
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  CLI RECORD VIEWER TAB
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('panel-cli').innerHTML = `
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <span class="filter-label">CLI Daily Record</span>
+    <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);">
+      Official NWS observed record — select a date from the list
+    </span>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="date-nav-btn" id="cliPrev" title="Previous day">◀</button>
+      <button class="date-nav-btn" id="cliNext" title="Next day">▶</button>
+    </div>
+  </div>
+
+  <div class="cli-layout">
+    <!-- Date sidebar -->
+    <div class="cli-date-list">
+      <div class="cli-date-list-header">
+        Observation Dates
+        <span style="margin-left:auto;font-family:var(--mono);font-size:11px;" id="cliDateCount">—</span>
+      </div>
+      <input class="cli-date-search" id="cliDateSearch" placeholder="Filter dates…" type="text">
+      <div class="cli-date-items" id="cliDateItems">
+        <div style="padding:20px;text-align:center;color:var(--text-dimmer);font-family:var(--mono);font-size:12px;">
+          Load CLI data to begin
+        </div>
+      </div>
+    </div>
+
+    <!-- Record display -->
+    <div class="cli-record" id="cliRecord">
+      <div class="empty-state">
+        <div class="empty-icon">◈</div>
+        <div class="empty-title">Select a Date</div>
+        <div class="empty-msg">Choose a date from the list to view the full CLI record</div>
+      </div>
+    </div>
+  </div>
+`;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let cliCurrentDate = null;
+let cliAllDates    = [];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const pf2 = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+const fmt  = (v, dec, unit='') => v !== null && v !== '' ? Number(v).toFixed(dec) + unit : '—';
+const fmtI = (v, unit='') => v !== null && v !== '' && !isNaN(Number(v)) ? Math.round(Number(v)) + unit : '—';
+
+function depColor(v) {
+  const n = pf2(v);
+  if (n === null) return '';
+  if (n > 0.5) return 'dep-warm';
+  if (n < -0.5) return 'dep-cool';
+  return 'dep-norm';
+}
+
+function depStr(v, unit='°F') {
+  const n = pf2(v);
+  if (n === null || v === '') return '—';
+  return (n > 0 ? '+' : '') + n.toFixed(1) + unit;
+}
+
+function traceOrNum(v, dec=2) {
+  if (v === '' || v === null) return '—';
+  if (parseFloat(v) === 0.001) return '<span style="color:var(--cyan)">T</span>';
+  const n = pf2(v);
+  if (n === null) return '—';
+  return n.toFixed(dec) + '"';
+}
+
+// ── Build date sidebar ─────────────────────────────────────────────────────
+function buildCliDateList(filter='') {
+  const items = document.getElementById('cliDateItems');
+  const filtered = filter
+    ? cliAllDates.filter(d => d.date.includes(filter))
+    : cliAllDates;
+
+  if (!filtered.length) {
+    items.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-dimmer);font-size:12px;font-family:var(--mono);">No dates match</div>';
+    return;
+  }
+
+  items.innerHTML = filtered.map(d => {
+    const dow = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+    const hi  = d.max_temp_f !== '' ? d.max_temp_f + '°' : '—';
+    const lo  = d.min_temp_f !== '' ? d.min_temp_f + '°' : '—';
+    const isImported = d.product_id === 'IMPORTED-EXCEL';
+    return `<div class="cli-date-item ${d.date === cliCurrentDate ? 'active' : ''} ${isImported ? 'imported' : ''}"
+      data-date="${d.date}" onclick="loadCliRecord('${d.date}')">
+      <span class="cdi-date">${dow} ${d.date.slice(5)}</span>
+      <span class="cdi-temp">${hi} / ${lo}</span>
+    </div>`;
+  }).join('');
+
+  // Scroll active item into view
+  const active = items.querySelector('.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+function initCliTab() {
+  if (!STATE.cli.length) return;
+
+  // Sort descending (newest first)
+  cliAllDates = STATE.cli
+    .filter(r => r.obs_date)
+    .sort((a, b) => b.obs_date.localeCompare(a.obs_date));
+
+  document.getElementById('cliDateCount').textContent = cliAllDates.length;
+  buildCliDateList();
+
+  // Auto-load most recent
+  if (cliAllDates.length && !cliCurrentDate) {
+    loadCliRecord(cliAllDates[0].date);
+  }
+}
+
+// ── Render full CLI record ─────────────────────────────────────────────────
+function loadCliRecord(dateStr) {
+  cliCurrentDate = dateStr;
+  buildCliDateList(document.getElementById('cliDateSearch').value);
+
+  const obs = STATE.cli.find(r => r.obs_date === dateStr);
+  if (!obs) {
+    document.getElementById('cliRecord').innerHTML =
+      `<div class="empty-state"><div class="empty-msg">No CLI data for ${dateStr}</div></div>`;
+    return;
+  }
+
+  const dow = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const isImported = obs.product_id === 'IMPORTED-EXCEL';
+  const sourceLabel = isImported
+    ? '<span class="cli-source-badge imported">Imported from Excel</span>'
+    : `<span class="cli-source-badge">${obs.product_id || 'CLI'}</span>`;
+
+  // Check records
+  const hiTemp = pf2(obs.max_temp_f);
+  const loTemp = pf2(obs.min_temp_f);
+  const recHi  = pf2(obs.record_high_f);
+  const recLo  = pf2(obs.record_low_f);
+  const hiRecord = recHi !== null && hiTemp !== null && hiTemp >= recHi;
+  const loRecord = recLo !== null && loTemp !== null && loTemp <= recLo;
+
+  const html = `
+    <!-- Header -->
+    <div class="chart-card" style="padding:16px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:var(--cond);font-size:18px;font-weight:700;letter-spacing:1px;color:var(--text);">${dow}</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:3px;">
+            ${obs.issued_at ? 'Issued: ' + obs.issued_at.slice(0,16).replace('T',' ') + ' UTC' : 'Issued time not available'}
+            &nbsp;·&nbsp; Retrieved: ${obs.retrieved_at ? obs.retrieved_at.slice(0,16).replace('T',' ') + ' UTC' : '—'}
+          </div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          ${sourceLabel}
+          ${obs.weather_conditions && obs.weather_conditions !== 'NO SIGNIFICANT WEATHER WAS OBSERVED.'
+            ? `<span style="font-family:var(--sans);font-size:13px;color:var(--cyan);">⚠ ${obs.weather_conditions}</span>`
+            : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Temperature -->
+    <div class="cli-section">
+      <div class="cli-section-header"><span class="csh-icon">🌡</span> Temperature</div>
+      <div class="cli-metric-grid">
+        <div class="cli-metric">
+          <div class="cm-label">Maximum</div>
+          <div class="cm-value" style="color:var(--red);">
+            ${fmtI(obs.max_temp_f, '°F')}
+            ${hiRecord ? '<span class="record-badge">RECORD</span>' : ''}
+          </div>
+          <div class="cm-time">${obs.max_temp_time || ''}</div>
+          <div class="cm-sub">Normal: ${fmtI(obs.normal_high_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Minimum</div>
+          <div class="cm-value" style="color:var(--cyan);">
+            ${fmtI(obs.min_temp_f, '°F')}
+            ${loRecord ? '<span class="record-badge">RECORD</span>' : ''}
+          </div>
+          <div class="cm-time">${obs.min_temp_time || ''}</div>
+          <div class="cm-sub">Normal: ${fmtI(obs.normal_low_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Average</div>
+          <div class="cm-value">${fmtI(obs.avg_temp_f, '°F')}</div>
+          <div class="cm-sub">Normal: ${fmtI(obs.normal_avg_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Departure Hi</div>
+          <div class="cm-value ${depColor(obs.dep_max_f)}">${depStr(obs.dep_max_f)}</div>
+          <div class="cm-sub">from normal</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Departure Lo</div>
+          <div class="cm-value ${depColor(obs.dep_min_f)}">${depStr(obs.dep_min_f)}</div>
+          <div class="cm-sub">from normal</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Departure Avg</div>
+          <div class="cm-value ${depColor(obs.dep_avg_f)}">${depStr(obs.dep_avg_f)}</div>
+          <div class="cm-sub">from normal</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Record High</div>
+          <div class="cm-value" style="color:var(--text-dim);">${fmtI(obs.record_high_f, '°F')}</div>
+          <div class="cm-sub">${obs.record_high_year || '—'}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Record Low</div>
+          <div class="cm-value" style="color:var(--text-dim);">${fmtI(obs.record_low_f, '°F')}</div>
+          <div class="cm-sub">${obs.record_low_year || '—'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wind -->
+    <div class="cli-section">
+      <div class="cli-section-header"><span class="csh-icon">💨</span> Wind</div>
+      <div class="cli-metric-grid">
+        <div class="cli-metric">
+          <div class="cm-label">Average Speed</div>
+          <div class="cm-value" style="color:var(--amber);">${fmt(obs.avg_wind_speed_mph, 1, ' mph')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Resultant Speed</div>
+          <div class="cm-value">${fmt(obs.resultant_wind_speed_mph, 0, ' mph')}</div>
+          <div class="cm-sub">Dir: ${obs.resultant_wind_dir_compass || '—'} ${obs.resultant_wind_dir_deg ? '(' + obs.resultant_wind_dir_deg + '°)' : ''}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Highest Wind</div>
+          <div class="cm-value" style="color:var(--amber);">${fmtI(obs.max_wind_speed_mph, ' mph')}</div>
+          <div class="cm-sub">Dir: ${obs.max_wind_dir_compass || '—'} ${obs.max_wind_dir_deg ? '(' + obs.max_wind_dir_deg + '°)' : ''}</div>
+          <div class="cm-time">${obs.max_wind_time || ''}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Peak Gust</div>
+          <div class="cm-value" style="color:var(--green);">${fmtI(obs.peak_gust_mph, ' mph')}</div>
+          <div class="cm-sub">Dir: ${obs.peak_gust_dir_compass || '—'} ${obs.peak_gust_dir_deg ? '(' + obs.peak_gust_dir_deg + '°)' : ''}</div>
+          <div class="cm-time">${obs.peak_gust_time || ''}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Precipitation -->
+    <div class="cli-section">
+      <div class="cli-section-header"><span class="csh-icon">🌧</span> Precipitation</div>
+      <table class="cli-precip-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Observed</th>
+            <th>Normal</th>
+            <th>Departure</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Today</td>
+            <td>${traceOrNum(obs.precip_today_in)}</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Month to Date</td>
+            <td>${traceOrNum(obs.precip_month_in)}</td>
+            <td>${traceOrNum(obs.precip_normal_month_in)}</td>
+            <td>${obs.precip_month_in && obs.precip_normal_month_in
+              ? (pf2(obs.precip_month_in) - pf2(obs.precip_normal_month_in) >= 0 ? '+' : '') +
+                (pf2(obs.precip_month_in) - pf2(obs.precip_normal_month_in)).toFixed(2) + '"'
+              : '—'}</td>
+          </tr>
+          <tr>
+            <td>Since Jan 1 (YTD)</td>
+            <td>${traceOrNum(obs.precip_year_in)}</td>
+            <td>${traceOrNum(obs.precip_normal_year_in)}</td>
+            <td>${obs.precip_year_in && obs.precip_normal_year_in
+              ? (pf2(obs.precip_year_in) - pf2(obs.precip_normal_year_in) >= 0 ? '+' : '') +
+                (pf2(obs.precip_year_in) - pf2(obs.precip_normal_year_in)).toFixed(2) + '"'
+              : '—'}</td>
+          </tr>
+          <tr>
+            <td>Since Oct 1 (Water Yr)</td>
+            <td>${traceOrNum(obs.precip_water_year_in)}</td>
+            <td>${traceOrNum(obs.precip_normal_water_year_in)}</td>
+            <td>${obs.precip_water_year_in && obs.precip_normal_water_year_in
+              ? (pf2(obs.precip_water_year_in) - pf2(obs.precip_normal_water_year_in) >= 0 ? '+' : '') +
+                (pf2(obs.precip_water_year_in) - pf2(obs.precip_normal_water_year_in)).toFixed(2) + '"'
+              : '—'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Sky, Sunshine & Humidity -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+      <div class="cli-section">
+        <div class="cli-section-header"><span class="csh-icon">☀</span> Sky &amp; Sunshine</div>
+        <div class="cli-metric-grid">
+          <div class="cli-metric">
+            <div class="cm-label">Avg Sky Cover</div>
+            <div class="cm-value" style="color:var(--purple);">${obs.sky_cover_tenths !== '' ? obs.sky_cover_tenths + '/10' : '—'}</div>
+            <div class="cm-sub">${obs.sky_cover_tenths !== '' ? Math.round(pf2(obs.sky_cover_tenths) * 10) + '% coverage' : ''}</div>
+          </div>
+          <div class="cli-metric">
+            <div class="cm-label">Sunshine</div>
+            <div class="cm-value" style="color:var(--amber);">${obs.sunshine_pct !== '' ? obs.sunshine_pct + '%' : '—'}</div>
+            <div class="cm-sub">${obs.sunshine_hours !== '' ? obs.sunshine_hours + ' hrs' : 'possible'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cli-section">
+        <div class="cli-section-header"><span class="csh-icon">💧</span> Relative Humidity</div>
+        <div class="cli-metric-grid">
+          <div class="cli-metric">
+            <div class="cm-label">Maximum</div>
+            <div class="cm-value" style="color:var(--cyan);">${obs.rh_max_pct !== '' ? obs.rh_max_pct + '%' : '—'}</div>
+            <div class="cm-time">${obs.rh_max_time || ''}</div>
+          </div>
+          <div class="cli-metric">
+            <div class="cm-label">Minimum</div>
+            <div class="cm-value" style="color:var(--red);">${obs.rh_min_pct !== '' ? obs.rh_min_pct + '%' : '—'}</div>
+            <div class="cm-time">${obs.rh_min_time || ''}</div>
+          </div>
+          <div class="cli-metric">
+            <div class="cm-label">Average</div>
+            <div class="cm-value">${obs.rh_avg_pct !== '' ? obs.rh_avg_pct + '%' : '—'}</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Weather conditions -->
+    ${obs.weather_conditions ? `
+    <div class="cli-section">
+      <div class="cli-section-header"><span class="csh-icon">⛅</span> Weather Conditions</div>
+      <div style="padding:16px 18px;font-family:var(--sans);font-size:14px;color:var(--text);line-height:1.6;">
+        ${obs.weather_conditions}
+      </div>
+    </div>` : ''}
+
+    <!-- Climate normals reference -->
+    <div class="cli-section">
+      <div class="cli-section-header"><span class="csh-icon">📊</span> Climate Context &nbsp;
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dimmer);font-weight:400;">1991–2020 normals</span>
+      </div>
+      <div class="cli-metric-grid">
+        <div class="cli-metric">
+          <div class="cm-label">Normal High</div>
+          <div class="cm-value">${fmtI(obs.normal_high_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Normal Low</div>
+          <div class="cm-value">${fmtI(obs.normal_low_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Normal Avg</div>
+          <div class="cm-value">${fmtI(obs.normal_avg_f, '°F')}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Record High</div>
+          <div class="cm-value" style="color:var(--red);">${fmtI(obs.record_high_f, '°F')}</div>
+          <div class="cm-sub">${obs.record_high_year || '—'}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Record Low</div>
+          <div class="cm-value" style="color:var(--cyan);">${fmtI(obs.record_low_f, '°F')}</div>
+          <div class="cm-sub">${obs.record_low_year || '—'}</div>
+        </div>
+        <div class="cli-metric">
+          <div class="cm-label">Record Period</div>
+          <div class="cm-value" style="font-size:13px;color:var(--text-dim);">1937–2026</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('cliRecord').innerHTML = html;
+}
+
+// ── Date search filter ─────────────────────────────────────────────────────
+document.getElementById('cliDateSearch').addEventListener('input', e => {
+  buildCliDateList(e.target.value.trim());
+});
+
+// ── Prev / Next navigation ─────────────────────────────────────────────────
+document.getElementById('cliPrev').addEventListener('click', () => {
+  if (!cliCurrentDate || !cliAllDates.length) return;
+  // cliAllDates is sorted descending, so prev = later index
+  const idx = cliAllDates.findIndex(d => d.date === cliCurrentDate);
+  if (idx < cliAllDates.length - 1) loadCliRecord(cliAllDates[idx + 1].date);
+});
+
+document.getElementById('cliNext').addEventListener('click', () => {
+  if (!cliCurrentDate || !cliAllDates.length) return;
+  const idx = cliAllDates.findIndex(d => d.date === cliCurrentDate);
+  if (idx > 0) loadCliRecord(cliAllDates[idx - 1].date);
+});
+
+// ── Auto-init when CLI data loads ─────────────────────────────────────────
+const _origIngestCLI_p7 = window.ingestCLI;
+window.ingestCLI = function(rows) {
+  _origIngestCLI_p7(rows);
+  initCliTab();
 };
 </script>
