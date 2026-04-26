@@ -4161,7 +4161,7 @@ function traceOrNum(v, dec=2) {
 function buildCliDateList(filter='') {
   const items = document.getElementById('cliDateItems');
   const filtered = filter
-    ? cliAllDates.filter(d => d.date.includes(filter))
+    ? cliAllDates.filter(d => d.obs_date.includes(filter))
     : cliAllDates;
 
   if (!filtered.length) {
@@ -4170,13 +4170,13 @@ function buildCliDateList(filter='') {
   }
 
   items.innerHTML = filtered.map(d => {
-    const dow = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+    const dow = new Date(d.obs_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
     const hi  = d.max_temp_f !== '' ? d.max_temp_f + '°' : '—';
     const lo  = d.min_temp_f !== '' ? d.min_temp_f + '°' : '—';
     const isImported = d.product_id === 'IMPORTED-EXCEL';
-    return `<div class="cli-date-item ${d.date === cliCurrentDate ? 'active' : ''} ${isImported ? 'imported' : ''}"
-      data-date="${d.date}" onclick="loadCliRecord('${d.date}')">
-      <span class="cdi-date">${dow} ${d.date.slice(5)}</span>
+    return `<div class="cli-date-item ${d.obs_date === cliCurrentDate ? 'active' : ''} ${isImported ? 'imported' : ''}"
+      data-date="${d.obs_date}" onclick="loadCliRecord('${d.obs_date}')">
+      <span class="cdi-date">${dow} ${d.obs_date.slice(5)}</span>
       <span class="cdi-temp">${hi} / ${lo}</span>
     </div>`;
   }).join('');
@@ -4197,9 +4197,15 @@ function initCliTab() {
   document.getElementById('cliDateCount').textContent = cliAllDates.length;
   buildCliDateList();
 
-  // Auto-load most recent
-  if (cliAllDates.length && !cliCurrentDate) {
-    loadCliRecord(cliAllDates[0].date);
+  // Default to yesterday's date (CLI covers the previous calendar day)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = yesterday.toISOString().slice(0, 10);
+
+  // Find yesterday in the list, or fall back to most recent available
+  const target = cliAllDates.find(r => r.obs_date === yStr) || cliAllDates[0];
+  if (target && !cliCurrentDate) {
+    loadCliRecord(target.obs_date);
   }
 }
 
@@ -4481,15 +4487,16 @@ document.getElementById('cliDateSearch').addEventListener('input', e => {
 // ── Prev / Next navigation ─────────────────────────────────────────────────
 document.getElementById('cliPrev').addEventListener('click', () => {
   if (!cliCurrentDate || !cliAllDates.length) return;
-  // cliAllDates is sorted descending, so prev = later index
-  const idx = cliAllDates.findIndex(d => d.date === cliCurrentDate);
-  if (idx < cliAllDates.length - 1) loadCliRecord(cliAllDates[idx + 1].date);
+  // Descending list: higher index = older date = "previous day"
+  const idx = cliAllDates.findIndex(d => d.obs_date === cliCurrentDate);
+  if (idx < cliAllDates.length - 1) loadCliRecord(cliAllDates[idx + 1].obs_date);
 });
 
 document.getElementById('cliNext').addEventListener('click', () => {
   if (!cliCurrentDate || !cliAllDates.length) return;
-  const idx = cliAllDates.findIndex(d => d.date === cliCurrentDate);
-  if (idx > 0) loadCliRecord(cliAllDates[idx - 1].date);
+  // Descending list: lower index = newer date = "next day"
+  const idx = cliAllDates.findIndex(d => d.obs_date === cliCurrentDate);
+  if (idx > 0) loadCliRecord(cliAllDates[idx - 1].obs_date);
 });
 
 // ── Auto-init when CLI data loads ─────────────────────────────────────────
