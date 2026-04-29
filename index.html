@@ -1205,6 +1205,15 @@ document.getElementById('panel-verification').innerHTML = `
     </div>
     <button class="btn btn-amber" id="btnRunVerify">Run Verification</button>
     <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="vResultInfo"></span>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <span style="font-family:var(--cond);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);">Download</span>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-ghost" id="btnDlFilteredCSV"  title="Download filtered view as CSV">Filtered CSV</button>
+        <button class="btn btn-ghost" id="btnDlFilteredXLSX" title="Download filtered view as XLSX">Filtered XLSX</button>
+        <button class="btn btn-ghost" id="btnDlAllCSV"       title="Download all pairs as CSV">All CSV</button>
+        <button class="btn btn-ghost" id="btnDlAllXLSX"      title="Download all pairs as XLSX">All XLSX</button>
+      </div>
+    </div>
   </div>
 
   <!-- Metric tiles -->
@@ -4518,4 +4527,180 @@ window.ingestCLI = function(rows) {
   _origIngestCLI_p7(rows);
   initCliTab();
 };
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  VERIFICATION TABLE — CSV & XLSX DOWNLOAD
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Column definitions for export ─────────────────────────────────────────
+const EXPORT_COLS = [
+  { key: 'date',       header: 'Date' },
+  { key: 'lead',       header: 'Lead Days' },
+  { key: 'fcstHi',     header: 'Fcst High (°F)' },
+  { key: 'obsHi',      header: 'Obs High (°F)' },
+  { key: 'errHi',      header: 'Error High (°F)' },
+  { key: 'fcstLo',     header: 'Fcst Low (°F)' },
+  { key: 'obsLo',      header: 'Obs Low (°F)' },
+  { key: 'errLo',      header: 'Error Low (°F)' },
+  { key: 'fcstWnd',    header: 'Fcst Wind (mph)' },
+  { key: 'obsWnd',     header: 'Obs Wind (mph)' },
+  { key: 'errWnd',     header: 'Error Wind (mph)' },
+  { key: 'fcstGust',   header: 'Fcst Gust (mph)' },
+  { key: 'obsGust',    header: 'Obs Gust (mph)' },
+  { key: 'fcstSky',    header: 'Fcst Sky (%)' },
+  { key: 'obsSky',     header: 'Obs Sky (%)' },
+  { key: 'errSky',     header: 'Error Sky (%)' },
+  { key: 'fcstPop',    header: 'PoP Fcst (%)' },
+  { key: 'obsPrecip',  header: 'Obs Precip (in)' },
+  { key: 'fcstDewp',   header: 'Fcst Dewpoint (°F)' },
+  { key: 'fcstRH',     header: 'Fcst RH (%)' },
+  { key: 'normalHi',   header: 'Normal High (°F)' },
+  { key: 'normalLo',   header: 'Normal Low (°F)' },
+  { key: 'depHi',      header: 'Departure High (°F)' },
+  { key: 'depLo',      header: 'Departure Low (°F)' },
+  { key: 'fcstCond',   header: 'Fcst Conditions' },
+  { key: 'obsWx',      header: 'Obs Weather' },
+  { key: 'snapshot',   header: 'NWS Snapshot Time' },
+];
+
+// ── Format a pair row for export ──────────────────────────────────────────
+function pairToExportRow(p) {
+  const row = {};
+  for (const col of EXPORT_COLS) {
+    let val = p[col.key];
+    // Format numbers cleanly
+    if (val === null || val === undefined) val = '';
+    else if (col.key === 'obsPrecip' && p.isTrace) val = 'T';
+    else if (typeof val === 'number') val = +val.toFixed(2);
+    row[col.header] = val;
+  }
+  return row;
+}
+
+// ── CSV builder ────────────────────────────────────────────────────────────
+function buildCSV(pairs) {
+  const headers = EXPORT_COLS.map(c => c.header);
+  const rows    = pairs.map(pairToExportRow);
+
+  const escape = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const lines = [
+    headers.map(escape).join(','),
+    ...rows.map(r => headers.map(h => escape(r[h])).join(','))
+  ];
+  return lines.join('\r\n');
+}
+
+// ── Download helper ────────────────────────────────────────────────────────
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+function downloadCSV(pairs, filename) {
+  if (!pairs.length) { log('No data to download', 'warn'); return; }
+  const csv  = buildCSV(pairs);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, filename);
+  log(`Downloaded ${filename} — ${pairs.length} rows`, 'ok');
+}
+
+// ── XLSX builder (pure JS, no library needed) ─────────────────────────────
+// Uses SpreadsheetML XML format — opens natively in Excel and LibreOffice
+function buildXLSX(pairs) {
+  const headers = EXPORT_COLS.map(c => c.header);
+  const rows    = pairs.map(pairToExportRow);
+
+  const xmlEsc = s => String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // Determine cell type
+  const cellXML = (val, colIdx) => {
+    const s = String(val ?? '');
+    if (s === '' || s === 'T') {
+      return `<Cell><Data ss:Type="String">${xmlEsc(s)}</Data></Cell>`;
+    }
+    // Number columns (everything except string columns)
+    const strCols = ['Date','Fcst Conditions','Obs Weather','NWS Snapshot Time'];
+    if (!strCols.includes(headers[colIdx]) && !isNaN(Number(s)) && s !== '') {
+      return `<Cell><Data ss:Type="Number">${s}</Data></Cell>`;
+    }
+    return `<Cell><Data ss:Type="String">${xmlEsc(s)}</Data></Cell>`;
+  };
+
+  const headerRow = `<Row>` +
+    headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${xmlEsc(h)}</Data></Cell>`).join('') +
+    `</Row>`;
+
+  const dataRows = rows.map(r =>
+    `<Row>` + headers.map((h, i) => cellXML(r[h], i)).join('') + `</Row>`
+  ).join('\n');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="header">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#1A2633" ss:Pattern="Solid"/>
+      <Font ss:Color="#E8A020" ss:Bold="1"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="Verification">
+    <Table>
+      ${headerRow}
+      ${dataRows}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+  return new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+}
+
+function downloadXLSX(pairs, filename) {
+  if (!pairs.length) { log('No data to download', 'warn'); return; }
+  const blob = buildXLSX(pairs);
+  downloadBlob(blob, filename);
+  log(`Downloaded ${filename} — ${pairs.length} rows`, 'ok');
+}
+
+// ── Filename helpers ───────────────────────────────────────────────────────
+function exportFilename(scope, ext) {
+  const today = new Date();
+  const d = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  return `KLAS-verification-${scope}-${d}.${ext}`;
+}
+
+// ── Wire buttons ──────────────────────────────────────────────────────────
+document.getElementById('btnDlFilteredCSV').addEventListener('click', () => {
+  if (!V.filtered.length) { log('Run verification first', 'warn'); return; }
+  downloadCSV(V.filtered, exportFilename('filtered', 'csv'));
+});
+
+document.getElementById('btnDlFilteredXLSX').addEventListener('click', () => {
+  if (!V.filtered.length) { log('Run verification first', 'warn'); return; }
+  downloadXLSX(V.filtered, exportFilename('filtered', 'xls'));
+});
+
+document.getElementById('btnDlAllCSV').addEventListener('click', () => {
+  if (!V.pairs.length) { log('Run verification first', 'warn'); return; }
+  downloadCSV(V.pairs, exportFilename('all', 'csv'));
+});
+
+document.getElementById('btnDlAllXLSX').addEventListener('click', () => {
+  if (!V.pairs.length) { log('Run verification first', 'warn'); return; }
+  downloadXLSX(V.pairs, exportFilename('all', 'xls'));
+});
 </script>
