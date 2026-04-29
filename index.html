@@ -1205,6 +1205,15 @@ document.getElementById('panel-verification').innerHTML = `
     </div>
     <button class="btn btn-amber" id="btnRunVerify">Run Verification</button>
     <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="vResultInfo"></span>
+    <!-- Quick date pickers -->
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+      <span style="font-family:var(--cond);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);white-space:nowrap;">Quick</span>
+      <button class="btn btn-ghost" id="qPast7"     title="Prior 7 days from today">Past 7d</button>
+      <button class="btn btn-ghost" id="qPast30"    title="Prior 30 days from today">Past 30d</button>
+      <button class="btn btn-ghost" id="qLastWeek"  title="Previous full calendar week (Mon–Sun)">Last Wk</button>
+      <button class="btn btn-ghost" id="qLastMonth" title="Previous full calendar month">Last Mo</button>
+    </div>
+    <!-- Download -->
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
       <span style="font-family:var(--cond);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);">Download</span>
       <div style="display:flex;gap:4px;">
@@ -4702,5 +4711,67 @@ document.getElementById('btnDlAllCSV').addEventListener('click', () => {
 document.getElementById('btnDlAllXLSX').addEventListener('click', () => {
   if (!V.pairs.length) { log('Run verification first', 'warn'); return; }
   downloadXLSX(V.pairs, exportFilename('all', 'xls'));
+});
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  QUICK DATE PICKERS — VERIFICATION TAB
+// ═══════════════════════════════════════════════════════════════════════════
+
+function localDateStr(d) {
+  // Returns YYYY-MM-DD in local time (not UTC)
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function applyQuickRange(fromStr, toStr) {
+  const fromEl = document.getElementById('vDateFrom');
+  const toEl   = document.getElementById('vDateTo');
+  fromEl.value = fromStr;
+  toEl.value   = toStr;
+  // Re-run verification with new range if pairs exist
+  if (V.pairs.length) applyFilters();
+  else log(`Date range set: ${fromStr} → ${toStr}`, 'ok');
+}
+
+// Past 7 days: today-7 through today-1 (yesterday)
+document.getElementById('qPast7').addEventListener('click', () => {
+  const today = new Date();
+  const from  = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+  const to    = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  applyQuickRange(localDateStr(from), localDateStr(to));
+});
+
+// Past 30 days: today-30 through today-1
+document.getElementById('qPast30').addEventListener('click', () => {
+  const today = new Date();
+  const from  = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+  const to    = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  applyQuickRange(localDateStr(from), localDateStr(to));
+});
+
+// Last week: previous full Mon–Sun calendar week
+document.getElementById('qLastWeek').addEventListener('click', () => {
+  const today   = new Date();
+  const dow     = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  // Last Sunday = start of this week - 1 day
+  const lastSun = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow - 0);
+  // Last Monday = last Sunday - 6 days
+  const lastMon = new Date(lastSun.getFullYear(), lastSun.getMonth(), lastSun.getDate() - 6);
+  // To = last Sunday; From = last Monday
+  // But if today IS Sunday, last week ends yesterday
+  const sunOffset = dow === 0 ? 7 : dow; // days since last Monday
+  const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - sunOffset);
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  applyQuickRange(localDateStr(mon), localDateStr(sun));
+});
+
+// Last month: first through last day of previous calendar month
+document.getElementById('qLastMonth').addEventListener('click', () => {
+  const today  = new Date();
+  const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastOfLastMonth  = new Date(firstOfThisMonth - 1); // day before 1st = last day of prev month
+  const firstOfLastMonth = new Date(lastOfLastMonth.getFullYear(), lastOfLastMonth.getMonth(), 1);
+  applyQuickRange(localDateStr(firstOfLastMonth), localDateStr(lastOfLastMonth));
 });
 </script>
