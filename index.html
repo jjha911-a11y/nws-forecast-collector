@@ -3029,7 +3029,11 @@ function renderDrillCharts(rows, dateStr) {
   // Get forecast for this date (best lead — shortest available)
   const fcstRows = STATE.forecasts
     .filter(r => r.forecast_date === dateStr)
-    .sort((a,b) => (parseInt(a.lead_days)||99) - (parseInt(b.lead_days)||99));
+    .sort((a,b) => {
+      const la = parseInt(a.lead_days);
+      const lb = parseInt(b.lead_days);
+      return (isNaN(la) ? 99 : la) - (isNaN(lb) ? 99 : lb);
+    });
   const bestFcst = fcstRows[0] || null;
 
   // ── Temperature chart ──────────────────────────────────────────────────
@@ -3261,7 +3265,11 @@ function renderDrillFcstSidebar(dateStr) {
   // Get all forecast rows for this date, sorted by lead days ascending (D0 first)
   const fcsts = STATE.forecasts
     .filter(r => r.forecast_date === dateStr)
-    .sort((a,b) => (parseInt(a.lead_days)||99) - (parseInt(b.lead_days)||99));
+    .sort((a,b) => {
+      const la = parseInt(a.lead_days);
+      const lb = parseInt(b.lead_days);
+      return (isNaN(la) ? 99 : la) - (isNaN(lb) ? 99 : lb);
+    });
 
   const sidebar = document.getElementById('drillFcstSidebar');
 
