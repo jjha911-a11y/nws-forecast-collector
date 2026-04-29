@@ -3258,6 +3258,7 @@ function renderDrillObsTable(rows) {
 
 // ── Forecast sidebar ───────────────────────────────────────────────────────
 function renderDrillFcstSidebar(dateStr) {
+  // Get all forecast rows for this date, sorted by lead days ascending (D0 first)
   const fcsts = STATE.forecasts
     .filter(r => r.forecast_date === dateStr)
     .sort((a,b) => (parseInt(a.lead_days)||99) - (parseInt(b.lead_days)||99));
@@ -3269,11 +3270,13 @@ function renderDrillFcstSidebar(dateStr) {
     return;
   }
 
-  // Deduplicate by forecast_updated_at (one entry per NWS update)
+  // Deduplicate by lead_days — keep the FIRST (shortest-captured) snapshot
+  // for each lead day. This gives one card per lead day D0→D6, in order.
   const seen = new Set();
   const unique = fcsts.filter(r => {
-    if (seen.has(r.forecast_updated_at)) return false;
-    seen.add(r.forecast_updated_at);
+    const lead = r.lead_days ?? '';
+    if (seen.has(lead)) return false;
+    seen.add(lead);
     return true;
   });
 
