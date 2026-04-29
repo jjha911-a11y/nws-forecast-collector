@@ -1196,8 +1196,8 @@ document.getElementById('panel-verification').innerHTML = `
     <div class="filter-group">
       <span class="filter-label">Sort By</span>
       <select class="filter-select" id="vSort">
-        <option value="date_asc">Date ↑</option>
-        <option value="date_desc">Date ↓</option>
+        <option value="date_asc">Date ↑ (oldest)</option>
+        <option value="date_desc" selected>Date ↓ (newest)</option>
         <option value="lead_asc">Lead ↑</option>
         <option value="err_hi_desc">Hi Error ↓</option>
         <option value="err_lo_desc">Lo Error ↓</option>
@@ -1280,7 +1280,7 @@ let V = {
   pairs:    [],   // all joined rows
   filtered: [],   // after lead/date filters
   sortCol:  'date',
-  sortDir:  1,    // 1=asc, -1=desc
+  sortDir:  -1,   // -1=desc = newest first (default)
   page:     0,
   pageSize: 50,
 };
@@ -1424,7 +1424,7 @@ function applyFilters() {
   // Quick sort from dropdown
   const quickSort = document.getElementById('vSort').value;
   const quickMap = {
-    date_asc:     ['date', 1], date_desc:  ['date', -1],
+    date_asc:     ['date', 1],  date_desc: ['date', -1],
     lead_asc:     ['lead', 1],
     err_hi_desc:  ['err_hi', -1],
     err_lo_desc:  ['err_lo', -1],
