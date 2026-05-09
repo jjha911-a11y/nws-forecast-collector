@@ -1,21 +1,8 @@
 #!/usr/bin/env python3
 """
-collect_nbm.py
---------------
-Fetches NBM 5.0 text bulletins for KLAS from NOMADS, extracts the station
-block for each product (NBH, NBS, NBE, NBX, NBP), and writes the result to
-data/nbm_klas.txt in the repo.
-
-Run by GitHub Actions at 02Z, 08Z, 14Z, 20Z — one hour after each bulletin
-cycle (01Z, 07Z, 13Z, 19Z) to ensure the files are fully written to NOMADS.
-
-NOMADS path pattern:
-  https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/prod/
-    blend.YYYYMMDD/HH/text/blend_nb{s,h,e,x,p}tx.tHHz
-
-Station block format (fixed-width ASCII, unchanged from v4.3 per SCN 26-24):
-  Starts with a line matching:  KLAS   NBM V5.0 NB* GUIDANCE ...
-  Ends just before the next station header or end of file.
+collect_nbm.py — NBM 5.0 KLAS bulletin collector
+Discovers the latest available date/cycle from NOMADS dynamically
+rather than assuming today's date (NOMADS only retains ~2 days).
 """
 
 import os
@@ -24,20 +11,19 @@ import sys
 import time
 import subprocess
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 
-# ── Config ────────────────────────────────────────────────────────────────────
 STATION       = "KLAS"
 OUTPUT_FILE   = Path("data/nbm_klas.txt")
 NOMADS_BASE   = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/prod"
-REQUEST_DELAY = 4          # seconds between NOMADS requests — be polite
-TIMEOUT       = 60         # seconds per request
+REQUEST_DELAY = 4
+TIMEOUT       = 90
 MAX_RETRIES   = 3
+MAJOR_CYCLES  = {f"{c:02d}" for c in [1, 7, 13, 19]}
 
-# Product codes → NOMADS filename suffix
 PRODUCTS = {
     "NBH": "nbhtx",
     "NBS": "nbstx",
@@ -46,7 +32,6 @@ PRODUCTS = {
     "NBP": "nbptx",
 }
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
@@ -54,35 +39,65 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-
-# ── Cycle resolution ──────────────────────────────────────────────────────────
-def resolve_cycle() -> tuple[str, str]:
-    """
-    Return (YYYYMMDD, HH) for the most recently completed NBM cycle.
-    Valid bulletin cycles: 01, 07, 13, 19 UTC.
-    We run ~1 hour after each cycle, so 'most recent completed' is reliable.
-    """
-    now = datetime.now(timezone.utc)
-    valid_cycles = [1, 7, 13, 19]
-
-    # Walk back up to 24 hours to find the last completed cycle
-    for hours_back in range(0, 25):
-        candidate = now - timedelta(hours=hours_back)
-        if candidate.hour in valid_cycles:
-            date_str  = candidate.strftime("%Y%m%d")
-            cycle_str = f"{candidate.hour:02d}"
-            return date_str, cycle_str
-
-    # Fallback — should never reach here
-    return now.strftime("%Y%m%d"), "19"
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": "KLAS-NBM-Collector/1.0 (Jeff KE7KLV)"})
 
 
-# ── NOMADS fetch ──────────────────────────────────────────────────────────────
+def get_available_dates() -> list[str]:
+    resp = SESSION.get(NOMADS_BASE + "/", timeout=30)
+    resp.raise_for_status()
+    dates = sorted(set(re.findall(r'blend\.(\d{8})/', resp.text)), reverse=True)
+    log.info(f"NOMADS available dates: {dates}")
+    return dates
+
+
+def get_available_cycles(date_str: str) -> list[str]:
+    url = f"{NOMADS_BASE}/blend.{date_str}/"
+    resp = SESSION.get(url, timeout=30)
+    if resp.status_code == 403:
+        log.warning(f"  403 on {date_str} — skipping")
+        return []
+    resp.raise_for_status()
+    # Directory listing: both HTML anchor and plain formats
+    cycles = set(re.findall(r'href="(\d{2})/"', resp.text))
+    cycles |= set(re.findall(r'\b(\d{2})/\s+\d{2}-\w{3}-\d{4}', resp.text))
+    result = sorted(cycles, reverse=True)
+    log.info(f"  Cycles for {date_str}: {result}")
+    return result
+
+
+def resolve_best_cycle() -> tuple[str, str] | None:
+    """Walk NOMADS newest-first to find the latest major cycle with text/ files."""
+    try:
+        dates = get_available_dates()
+    except Exception as e:
+        log.error(f"Failed to list NOMADS dates: {e}")
+        return None
+
+    for date_str in dates:
+        try:
+            cycles = get_available_cycles(date_str)
+        except Exception as e:
+            log.warning(f"Could not list cycles for {date_str}: {e}")
+            continue
+
+        for cycle in cycles:
+            if cycle not in MAJOR_CYCLES:
+                continue
+            text_url = f"{NOMADS_BASE}/blend.{date_str}/{cycle}/text/"
+            try:
+                r = SESSION.get(text_url, timeout=20)
+                if r.status_code == 200 and "blend_nbstx" in r.text:
+                    log.info(f"Best cycle found: {date_str} {cycle}Z")
+                    return date_str, cycle
+            except Exception:
+                pass
+            time.sleep(1)
+
+    return None
+
+
 def fetch_product(date_str: str, cycle: str, prod_key: str) -> str | None:
-    """
-    Download the full bulk text file for one NBM product from NOMADS and
-    return the raw text, or None on failure.
-    """
     suffix   = PRODUCTS[prod_key]
     filename = f"blend_{suffix}.t{cycle}z"
     url      = f"{NOMADS_BASE}/blend.{date_str}/{cycle}/text/{filename}"
@@ -90,169 +105,113 @@ def fetch_product(date_str: str, cycle: str, prod_key: str) -> str | None:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             log.info(f"Fetching {prod_key} ({filename}) attempt {attempt}/{MAX_RETRIES}")
-            resp = requests.get(url, timeout=TIMEOUT, stream=True,
-                                headers={"User-Agent": "KLAS-NBM-Collector/1.0 (Jeff KE7KLV)"})
+            resp = SESSION.get(url, timeout=TIMEOUT, stream=True)
 
-            if resp.status_code == 404:
-                log.warning(f"  404 — {prod_key} not yet available for {date_str}/{cycle}Z")
+            if resp.status_code in (404, 403):
+                log.warning(f"  HTTP {resp.status_code} — skipping {prod_key}")
                 return None
-
             resp.raise_for_status()
 
-            # Read streaming to avoid loading entire ~25MB file at once
             chunks = []
-            for chunk in resp.iter_content(chunk_size=65536, decode_unicode=False):
+            for chunk in resp.iter_content(chunk_size=131072, decode_unicode=False):
                 chunks.append(chunk)
             raw_bytes = b"".join(chunks)
+            log.info(f"  Downloaded {len(raw_bytes):,} bytes")
 
-            # Try UTF-8, fall back to latin-1 (NBM bulletins are ASCII-safe)
             try:
-                text = raw_bytes.decode("utf-8")
+                return raw_bytes.decode("utf-8")
             except UnicodeDecodeError:
-                text = raw_bytes.decode("latin-1")
-
-            log.info(f"  OK — {len(text):,} chars")
-            return text
+                return raw_bytes.decode("latin-1")
 
         except requests.RequestException as e:
-            log.warning(f"  Request error: {e}")
+            log.warning(f"  Attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(REQUEST_DELAY * attempt)
 
-    log.error(f"  Failed after {MAX_RETRIES} attempts — skipping {prod_key}")
+    log.error(f"  All {MAX_RETRIES} attempts failed for {prod_key}")
     return None
 
 
-# ── Station block extractor ───────────────────────────────────────────────────
-# Station header pattern — matches lines like:
-#   "KLAS   NBM V5.0 NBH GUIDANCE  5/08/2026  1300 UTC"
-# The regex is intentionally broad to handle version number changes.
-STATION_HDR = re.compile(
-    r"^" + re.escape(STATION) + r"\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE",
-    re.MULTILINE,
-)
-
-# Any station header (to detect where next station starts)
-ANY_STATION_HDR = re.compile(
-    r"^[A-Z]{4}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE",
-    re.MULTILINE,
-)
+STATION_HDR     = re.compile(rf"^{re.escape(STATION)}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE", re.MULTILINE)
+ANY_STATION_HDR = re.compile(r"^[A-Z]{3,4}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE", re.MULTILINE)
 
 
-def extract_station_block(text: str, station: str) -> str | None:
-    """
-    Find and return the bulletin block for `station` within the full bulk text.
-    The block starts at the station's header line and ends just before the
-    next station's header (or end of file).
-    """
-    # Find our station's header
-    our_match = STATION_HDR.search(text)
-    if not our_match:
-        log.warning(f"  Station {station} not found in bulletin")
+def extract_station_block(text: str) -> str | None:
+    m = STATION_HDR.search(text)
+    if not m:
+        log.warning(f"  {STATION} not found in bulletin")
         return None
-
-    block_start = our_match.start()
-
-    # Find the next station header after ours
-    next_match = ANY_STATION_HDR.search(text, our_match.end())
-    block_end = next_match.start() if next_match else len(text)
-
-    block = text[block_start:block_end].rstrip()
-    log.info(f"  Extracted {station} block: {len(block):,} chars, "
-             f"{block.count(chr(10))} lines")
+    nxt = ANY_STATION_HDR.search(text, m.end())
+    block = text[m.start() : nxt.start() if nxt else len(text)].rstrip()
+    log.info(f"  Extracted {STATION} block: {len(block):,} chars")
     return block
 
 
-# ── Output writer ─────────────────────────────────────────────────────────────
-def write_output(blocks: dict[str, str], date_str: str, cycle: str) -> None:
-    """
-    Write all extracted blocks to OUTPUT_FILE, separated by a delimiter line.
-    The dashboard reads this file and splits on the delimiter to get per-product text.
-    """
+def write_output(blocks: dict, date_str: str, cycle: str) -> None:
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines = [
-        f"# NBM 5.0 KLAS bulletin extract",
+        "# NBM 5.0 KLAS bulletin extract",
         f"# Cycle: {date_str} {cycle}Z",
         f"# Retrieved: {now_utc}",
         f"# Products: {', '.join(blocks.keys())}",
-        f"# Generated by collect_nbm.py",
+        "# Generated by collect_nbm.py",
         "",
     ]
-
     for prod_key, block in blocks.items():
         lines.append(f"### PRODUCT:{prod_key} ###")
         lines.append(block)
-        lines.append("")   # blank line between products
-
+        lines.append("")
     OUTPUT_FILE.write_text("\n".join(lines), encoding="utf-8")
-    log.info(f"Wrote {OUTPUT_FILE} — {OUTPUT_FILE.stat().st_size:,} bytes")
+    log.info(f"Wrote {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size:,} bytes)")
 
 
-# ── Git commit & push ─────────────────────────────────────────────────────────
 def git_commit_push(date_str: str, cycle: str) -> None:
-    """
-    Pull latest, stage the output file, commit, and push.
-    Mirrors the approach used in collect_forecast.py.
-    """
-    def run(cmd: list[str]) -> subprocess.CompletedProcess:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            log.warning(f"  git {cmd[1]}: {result.stderr.strip()}")
-        else:
-            log.info(f"  git {cmd[1]}: OK")
-        return result
+    def run(cmd):
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        log.info(f"  $ {' '.join(cmd)}: {(r.stdout+r.stderr).strip()[:120]}")
+        return r
 
-    log.info("Committing and pushing…")
     run(["git", "config", "user.name",  "github-actions[bot]"])
     run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])
     run(["git", "pull", "--rebase", "origin", "main"])
     run(["git", "add", str(OUTPUT_FILE)])
 
-    msg = f"NBM {cycle}Z {date_str}: update KLAS bulletins"
-    result = subprocess.run(
-        ["git", "commit", "-m", msg],
-        capture_output=True, text=True
-    )
-    if "nothing to commit" in result.stdout + result.stderr:
+    r = subprocess.run(["git", "commit", "-m", f"NBM {cycle}Z {date_str}: update KLAS bulletins"],
+                       capture_output=True, text=True)
+    if "nothing to commit" in r.stdout + r.stderr:
         log.info("  Nothing changed — skip push")
         return
-
     run(["git", "push", "--force-with-lease"])
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> int:
-    date_str, cycle = resolve_cycle()
-    log.info(f"NBM collector starting — target cycle: {date_str} {cycle}Z")
-    log.info(f"Station: {STATION}  Output: {OUTPUT_FILE}")
+    log.info("NBM collector starting")
+
+    result = resolve_best_cycle()
+    if result is None:
+        log.error("No available NBM cycle found on NOMADS — aborting")
+        return 1
+
+    date_str, cycle = result
+    log.info(f"Target: {date_str} {cycle}Z  Station: {STATION}  Output: {OUTPUT_FILE}")
 
     blocks: dict[str, str] = {}
-
     for prod_key in PRODUCTS:
-        raw_text = fetch_product(date_str, cycle, prod_key)
-        if raw_text is None:
-            log.warning(f"Skipping {prod_key} — no data")
-            time.sleep(REQUEST_DELAY)
-            continue
-
-        block = extract_station_block(raw_text, STATION)
-        if block:
-            blocks[prod_key] = block
-        else:
-            log.warning(f"  No {STATION} block found in {prod_key}")
-
+        raw = fetch_product(date_str, cycle, prod_key)
+        if raw:
+            block = extract_station_block(raw)
+            if block:
+                blocks[prod_key] = block
         time.sleep(REQUEST_DELAY)
 
     if not blocks:
-        log.error("No data extracted for any product — aborting without commit")
+        log.error("No data extracted — aborting without commit")
         return 1
 
     log.info(f"Extracted {len(blocks)}/{len(PRODUCTS)} products: {list(blocks.keys())}")
     write_output(blocks, date_str, cycle)
     git_commit_push(date_str, cycle)
-
     log.info("Done.")
     return 0
 
