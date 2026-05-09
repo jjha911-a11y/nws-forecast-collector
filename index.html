@@ -551,6 +551,9 @@ input[type="file"] { display: none; }
   <button class="tab-btn" data-tab="events">
     Event Tracker <span class="tab-count" id="cntEvents">—</span>
   </button>
+  <button class="tab-btn" data-tab="nbm">
+    NBM Guidance <span class="tab-count" id="cntNBM">5.0</span>
+  </button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
@@ -711,6 +714,16 @@ input[type="file"] { display: none; }
     <div class="empty-icon">◑</div>
     <div class="empty-title">Coming in Piece 6</div>
     <div class="empty-msg">Automatic event flagging and anomaly detection</div>
+  </div>
+</section>
+
+
+<!-- ── NBM GUIDANCE ────────────────────────────────────────────────── -->
+<section class="panel" id="panel-nbm">
+  <div class="empty-state">
+    <div class="empty-icon">◈</div>
+    <div class="empty-title">NBM 5.0 Guidance</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -1035,6 +1048,868 @@ try {
 } catch(e) {}
 </script>
 </body>
+
+<style>
+/* ── NBM Tab styles ──────────────────────────────────────────────────────── */
+
+/* Product sub-tab strip */
+.nbm-product-nav {
+  display: flex; gap: 0; margin-bottom: 16px;
+  border: 1px solid var(--border2); border-radius: var(--radius2);
+  overflow: hidden; flex-wrap: wrap;
+}
+.nbm-prod-btn {
+  flex: 1; min-width: 80px;
+  height: 38px; padding: 0 14px;
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-dim); cursor: pointer;
+  border: none; border-right: 1px solid var(--border2);
+  background: var(--bg3); transition: all 0.15s;
+  white-space: nowrap;
+}
+.nbm-prod-btn:last-child { border-right: none; }
+.nbm-prod-btn:hover { background: var(--surface2); color: var(--text); }
+.nbm-prod-btn.active {
+  background: var(--amber-glow); color: var(--amber);
+  border-bottom: 2px solid var(--amber);
+}
+
+/* Cycle selector */
+.nbm-cycle-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.nbm-cycle-btn {
+  font-family: var(--mono); font-size: 12px;
+  padding: 5px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.15s;
+}
+.nbm-cycle-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.nbm-cycle-btn.active {
+  background: var(--amber-glow); color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+/* Meta info strip */
+.nbm-meta-strip {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  margin-bottom: 16px;
+  font-family: var(--mono); font-size: 12px;
+}
+.nbm-meta-item { display: flex; flex-direction: column; gap: 2px; }
+.nbm-meta-label {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer);
+}
+.nbm-meta-val { color: var(--amber); }
+
+/* Bulletin table wrapper */
+.nbm-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  margin-bottom: 16px;
+}
+
+/* Fixed-width bulletin rendered as HTML table */
+.nbm-table {
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 100%;
+}
+.nbm-table th {
+  background: var(--surface2);
+  padding: 6px 10px;
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 2px solid var(--border2);
+  text-align: left;
+  position: sticky; top: 0; z-index: 2;
+  white-space: nowrap;
+}
+.nbm-table th.num { text-align: right; }
+
+.nbm-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(30,46,61,0.4);
+  color: var(--text);
+  text-align: right;
+}
+.nbm-table td.row-label {
+  text-align: left;
+  color: var(--text-dim);
+  font-family: var(--cond); font-size: 11px;
+  letter-spacing: 1px; text-transform: uppercase;
+  background: var(--bg3);
+  position: sticky; left: 0; z-index: 1;
+  border-right: 1px solid var(--border2);
+  padding-right: 14px;
+  min-width: 130px;
+}
+.nbm-table tr:hover td { background: var(--surface2); }
+.nbm-table tr:hover td.row-label { background: var(--surface); }
+.nbm-table tr:last-child td { border-bottom: none; }
+
+/* Hour column headers */
+.nbm-table .col-hour {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-dim); text-align: right;
+  min-width: 36px;
+}
+
+/* Value coloring by element type */
+.nbm-val-tmp  { color: var(--red); }
+.nbm-val-tlo  { color: var(--cyan); }
+.nbm-val-wind { color: var(--amber); }
+.nbm-val-pop  { color: var(--purple); }
+.nbm-val-sky  { color: #9b9bcc; }
+.nbm-val-qpf  { color: var(--green); }
+.nbm-val-wbgt { color: #ff9f1c; }
+.nbm-val-miss { color: var(--text-dimmer); font-size: 10px; }
+.nbm-val-na   { color: var(--border2); }
+
+/* Product description card */
+.nbm-prod-desc {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex; gap: 20px; flex-wrap: wrap;
+}
+.nbm-prod-desc .npd-item { display: flex; flex-direction: column; gap: 3px; }
+.nbm-prod-desc .npd-label {
+  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer);
+}
+.nbm-prod-desc .npd-val {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+}
+
+/* Raw bulletin toggle */
+.nbm-raw-toggle {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 0; user-select: none;
+  transition: color 0.15s;
+}
+.nbm-raw-toggle:hover { color: var(--amber); }
+.nbm-raw-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.nbm-raw-box::-webkit-scrollbar { width: 4px; height: 4px; }
+.nbm-raw-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* NBM v5 badge */
+.nbm-version-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px;
+  background: rgba(61,220,132,0.12); color: var(--green);
+  border: 1px solid var(--green-dim); border-radius: 10px;
+  padding: 2px 9px;
+}
+
+/* Loading/error states */
+.nbm-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 40px 20px; justify-content: center;
+  font-family: var(--cond); font-size: 13px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.nbm-error {
+  background: rgba(232,64,64,0.08);
+  border: 1px solid var(--red-dim);
+  border-radius: var(--radius2);
+  padding: 16px 20px;
+  font-family: var(--mono); font-size: 13px; color: var(--red);
+  margin-bottom: 16px;
+}
+
+/* WBGT row highlight (new in NBM 5.0) */
+.nbm-table tr.wbgt-row td { background: rgba(255,159,28,0.05); }
+.nbm-table tr.wbgt-row td.row-label { border-left: 2px solid #ff9f1c; }
+
+/* NBM summary tiles (key element snapshot) */
+.nbm-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.nbm-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 12px 14px;
+  position: relative; overflow: hidden;
+}
+.nbm-tile::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.nbm-tile.tmp::before  { background: linear-gradient(90deg, var(--red), transparent); }
+.nbm-tile.tlo::before  { background: linear-gradient(90deg, var(--cyan), transparent); }
+.nbm-tile.wind::before { background: linear-gradient(90deg, var(--amber), transparent); }
+.nbm-tile.pop::before  { background: linear-gradient(90deg, var(--purple), transparent); }
+.nbm-tile.sky::before  { background: linear-gradient(90deg, #9b9bcc, transparent); }
+.nbm-tile.qpf::before  { background: linear-gradient(90deg, var(--green), transparent); }
+.nbm-tile.wbgt::before { background: linear-gradient(90deg, #ff9f1c, transparent); }
+
+.nbm-tile .nt-label {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.nbm-tile .nt-val {
+  font-family: var(--mono); font-size: 22px; line-height: 1;
+}
+.nbm-tile.tmp  .nt-val { color: var(--red); }
+.nbm-tile.tlo  .nt-val { color: var(--cyan); }
+.nbm-tile.wind .nt-val { color: var(--amber); }
+.nbm-tile.pop  .nt-val { color: var(--purple); }
+.nbm-tile.sky  .nt-val { color: #9b9bcc; }
+.nbm-tile.qpf  .nt-val { color: var(--green); }
+.nbm-tile.wbgt .nt-val { color: #ff9f1c; }
+.nbm-tile .nt-sub {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 4px;
+}
+
+/* Percentile bars (NBP) */
+.nbm-pct-bar-wrap {
+  display: flex; align-items: center; gap: 6px;
+}
+.nbm-pct-track {
+  flex: 1; height: 6px; background: var(--bg3);
+  border-radius: 3px; overflow: hidden;
+  border: 1px solid var(--border2);
+}
+.nbm-pct-fill {
+  height: 100%; border-radius: 3px; background: var(--purple);
+}
+.nbm-pct-val {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--purple); min-width: 30px; text-align: right;
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  NBM 5.0 GUIDANCE TAB
+//  Fetches text bulletins from MDL (NBS, NBH, NBE, NBX, NBP) for KLAS
+//  and renders them as a structured interactive table matching the
+//  existing dashboard design system.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Replace placeholder panel with full UI ────────────────────────────────
+document.getElementById('panel-nbm').innerHTML = `
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <div class="filter-group">
+      <span class="filter-label">Station</span>
+      <span style="font-family:var(--mono);font-size:14px;color:var(--amber);letter-spacing:2px;">KLAS</span>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Cycle</span>
+      <div id="nbmCycleRow" class="nbm-cycle-row" style="margin-bottom:0;">
+        <button class="nbm-cycle-btn" data-cycle="01">01Z</button>
+        <button class="nbm-cycle-btn" data-cycle="07">07Z</button>
+        <button class="nbm-cycle-btn" data-cycle="13">13Z</button>
+        <button class="nbm-cycle-btn" data-cycle="19">19Z</button>
+      </div>
+    </div>
+    <button class="btn btn-amber" id="btnNBMFetch">
+      Fetch Bulletins
+    </button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+      <span class="nbm-version-badge">NBM 5.0</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="nbmFetchTime"></span>
+    </div>
+  </div>
+
+  <!-- Product sub-tabs -->
+  <div class="nbm-product-nav" id="nbmProductNav">
+    <button class="nbm-prod-btn active" data-prod="nbh">NBH · Hourly</button>
+    <button class="nbm-prod-btn"        data-prod="nbs">NBS · Short</button>
+    <button class="nbm-prod-btn"        data-prod="nbe">NBE · Extended</button>
+    <button class="nbm-prod-btn"        data-prod="nbx">NBX · Super-Ext</button>
+    <button class="nbm-prod-btn"        data-prod="nbp">NBP · Probabilistic</button>
+  </div>
+
+  <!-- Product description -->
+  <div class="nbm-prod-desc" id="nbmProdDesc"></div>
+
+  <!-- Meta strip (issued time, station) -->
+  <div class="nbm-meta-strip" id="nbmMetaStrip" style="display:none;"></div>
+
+  <!-- Summary tiles (key element snapshot for current product) -->
+  <div class="nbm-summary-grid" id="nbmSummaryGrid" style="display:none;"></div>
+
+  <!-- Main bulletin table -->
+  <div id="nbmTableArea">
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      <div class="empty-title">No Data Loaded</div>
+      <div class="empty-msg">Select a cycle and click Fetch Bulletins</div>
+    </div>
+  </div>
+
+  <!-- Raw bulletin toggle -->
+  <div id="nbmRawSection" style="display:none;margin-top:16px;">
+    <div class="nbm-raw-toggle" id="nbmRawToggle">
+      <span id="nbmRawArrow">▶</span> Raw Bulletin Text
+    </div>
+    <div class="nbm-raw-box" id="nbmRawBox" style="display:none;"></div>
+  </div>
+`;
+
+// ── Product metadata ──────────────────────────────────────────────────────
+const NBM_PRODUCTS = {
+  nbh: {
+    label:   'NBM Hourly',
+    period:  'Hours 1–48 (NBM 5.0 extended from 36)',
+    cadence: 'Hourly intervals',
+    desc:    'Short-range hourly guidance. Best for hourly temp, wind, sky, and precip timing. NBM 5.0 adds WBGT and extends to 48 hours.',
+    color:   'var(--amber)',
+  },
+  nbs: {
+    label:   'NBM Short',
+    period:  'Hours 6–72',
+    cadence: '3-hourly intervals',
+    desc:    'Short-range public forecast guidance. Core product for daily hi/lo, wind, PoP, and QPF verification.',
+    color:   'var(--cyan)',
+  },
+  nbe: {
+    label:   'NBM Extended',
+    period:  'Hours 24–192',
+    cadence: '12-hourly intervals',
+    desc:    'Extended range out to 8 days. Useful for planning and climatological verification.',
+    color:   'var(--purple)',
+  },
+  nbx: {
+    label:   'NBM Super-Extended',
+    period:  'Hours 204–264',
+    cadence: '12-hourly intervals',
+    desc:    'Days 9–11 experimental guidance. NBM 5.0 adds significant wave height (SWH) — not relevant for KLAS but present.',
+    color:   '#9b9bcc',
+  },
+  nbp: {
+    label:   'NBM Probabilistic',
+    period:  'Hours 24–264',
+    cadence: '12-hourly intervals',
+    desc:    'Calibrated probability distributions — temp/wind percentiles, QPF exceedances, PoP. Core probabilistic guidance.',
+    color:   'var(--purple)',
+  },
+};
+
+// ── State ─────────────────────────────────────────────────────────────────
+const NBM = {
+  cycle:    null,    // '01' | '07' | '13' | '19'
+  product:  'nbh',  // active product key
+  raw:      {},      // raw text keyed by product: { nbh: '...', nbs: '...', ... }
+  parsed:   {},      // parsed data keyed by product
+  fetchedAt: null,
+};
+
+// ── MDL URL builder ───────────────────────────────────────────────────────
+function nbmUrl(products, station, cycle) {
+  return `https://www.weather.gov/mdl/nbm_text?ele=${products}&sta=${station}&cyc=${cycle}&download=yes`;
+}
+
+// ── Determine latest valid cycle ─────────────────────────────────────────
+function latestNBMCycle() {
+  const utcHour = new Date().getUTCHours();
+  const valid = [1, 7, 13, 19];
+  const eligible = valid.filter(c => c <= utcHour);
+  return eligible.length
+    ? String(eligible[eligible.length - 1]).padStart(2, '0')
+    : '19'; // previous day's 19Z
+}
+
+// ── Init cycle buttons ────────────────────────────────────────────────────
+function initNBMCycleButtons() {
+  const best = latestNBMCycle();
+  document.querySelectorAll('.nbm-cycle-btn').forEach(btn => {
+    if (btn.dataset.cycle === best) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nbm-cycle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      NBM.cycle = btn.dataset.cycle;
+    });
+  });
+  NBM.cycle = best;
+}
+initNBMCycleButtons();
+
+// ── Product tab click ─────────────────────────────────────────────────────
+document.querySelectorAll('.nbm-prod-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nbm-prod-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    NBM.product = btn.dataset.prod;
+    updateNBMProdDesc();
+    renderNBMProduct();
+  });
+});
+
+// ── Product description ───────────────────────────────────────────────────
+function updateNBMProdDesc() {
+  const p = NBM_PRODUCTS[NBM.product];
+  if (!p) return;
+  document.getElementById('nbmProdDesc').innerHTML = `
+    <div class="npd-item">
+      <span class="npd-label">Product</span>
+      <span class="npd-val" style="color:${p.color};">${p.label}</span>
+    </div>
+    <div class="npd-item">
+      <span class="npd-label">Period</span>
+      <span class="npd-val">${p.period}</span>
+    </div>
+    <div class="npd-item">
+      <span class="npd-label">Cadence</span>
+      <span class="npd-val">${p.cadence}</span>
+    </div>
+    <div class="npd-item" style="flex:2;">
+      <span class="npd-label">Description</span>
+      <span class="npd-val" style="color:var(--text-dim);font-size:11px;">${p.desc}</span>
+    </div>
+  `;
+}
+updateNBMProdDesc();
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  FETCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('btnNBMFetch').addEventListener('click', fetchNBMBulletins);
+
+async function fetchNBMBulletins() {
+  const btn = document.getElementById('btnNBMFetch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Fetching…';
+
+  const cycle = NBM.cycle;
+  const allProds = 'nbh,nbs,nbe,nbx,nbp';
+  const url = nbmUrl(allProds, 'klas', cycle);
+
+  document.getElementById('nbmTableArea').innerHTML = `
+    <div class="nbm-loading">
+      <span class="spinner"></span> Fetching NBM ${cycle}Z bulletins for KLAS…
+    </div>`;
+
+  try {
+    log(`Fetching NBM 5.0 bulletins — ${cycle}Z cycle…`);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} from MDL`);
+    const text = await resp.text();
+
+    // MDL returns all 5 products concatenated — split by product header
+    splitAndParseNBM(text, cycle);
+
+    NBM.fetchedAt = new Date();
+    document.getElementById('nbmFetchTime').textContent =
+      `Fetched ${NBM.fetchedAt.toUTCString().slice(17,25)} UTC`;
+    log(`NBM bulletins loaded — ${cycle}Z cycle`, 'ok');
+
+    renderNBMProduct();
+
+  } catch(e) {
+    document.getElementById('nbmTableArea').innerHTML = `
+      <div class="nbm-error">
+        ⚠ Failed to fetch NBM bulletins: ${e.message}<br>
+        <span style="font-size:11px;color:var(--text-dim);">
+          MDL text products are available at 01Z, 07Z, 13Z, and 19Z only.
+          If the selected cycle has not yet been issued, try an earlier cycle.
+        </span>
+      </div>`;
+    log(`NBM fetch failed: ${e.message}`, 'err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Fetch Bulletins';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PARSER — NBM fixed-width ASCII bulletin format
+//  Format identical to NBM v4.3 (confirmed per SCN 26-24)
+//
+//  Each product section begins with a header line:
+//    "KLAS   NBM V5.0 NBH GUIDANCE  5/08/2026  1300 UTC"
+//  Followed by element rows in fixed-width columns.
+//  UTC hour labels appear on the first data line.
+//  Missing values are represented by spaces or slash (/).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function splitAndParseNBM(rawText, cycle) {
+  // Each product block starts with a line containing station + product code
+  // e.g.  "KLAS   NBM V5.0 NBH GUIDANCE"
+  const prodKeys = ['nbh','nbs','nbe','nbx','nbp'];
+
+  // Split by finding header lines for each product
+  const productRegex = /^KLAS\s+NBM\s+V[\d.]+\s+(NBH|NBS|NBE|NBX|NBP)\s+GUIDANCE/im;
+
+  // Find all product sections by scanning lines
+  const lines = rawText.split(/\r?\n/);
+  const sections = {};
+  let currentProd = null;
+  let currentLines = [];
+
+  for (const line of lines) {
+    const m = line.match(/^KLAS\s+NBM\s+V[\d.]+\s+(NBH|NBS|NBE|NBX|NBP)\s+GUIDANCE/i);
+    if (m) {
+      if (currentProd && currentLines.length) {
+        sections[currentProd.toLowerCase()] = currentLines.join('\n');
+      }
+      currentProd = m[1];
+      currentLines = [line];
+    } else if (currentProd) {
+      currentLines.push(line);
+    }
+  }
+  if (currentProd && currentLines.length) {
+    sections[currentProd.toLowerCase()] = currentLines.join('\n');
+  }
+
+  // Parse each section
+  for (const prod of prodKeys) {
+    if (sections[prod]) {
+      NBM.raw[prod]    = sections[prod];
+      NBM.parsed[prod] = parseNBMSection(sections[prod], prod);
+    }
+  }
+}
+
+function parseNBMSection(text, prodKey) {
+  const lines = text.split(/\r?\n/);
+  if (!lines.length) return null;
+
+  // ── Header line: extract issued time ─────────────────────────────────
+  // "KLAS   NBM V5.0 NBH GUIDANCE  5/08/2026  1300 UTC"
+  const headerLine = lines[0];
+  const dateMatch = headerLine.match(/(\d{1,2}\/\d{2}\/\d{4})\s+(\d{4})\s+UTC/i);
+  let issuedStr = '';
+  if (dateMatch) {
+    const [, datePart, timePart] = dateMatch;
+    issuedStr = `${datePart} ${timePart.slice(0,2)}:${timePart.slice(2)} UTC`;
+  }
+
+  // ── UTC time label line ───────────────────────────────────────────────
+  // "UTC  14 15 16 17 18 19 20 21 22 23 00 01 ..."
+  // For NBS/NBE/NBX: "UTC  06/12 18/06 ..."  (date/hour pairs)
+  let timeLabels = [];
+  let dataStartIdx = -1;
+
+  for (let i = 1; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (/^UTC\b/i.test(l)) {
+      // Parse time labels after "UTC"
+      const rest = lines[i].replace(/^UTC\s*/i, '');
+      // Split on whitespace, treating multi-char tokens (e.g. "06/12") as one
+      timeLabels = rest.trim().split(/\s+/).filter(Boolean);
+      dataStartIdx = i + 1;
+      break;
+    }
+  }
+
+  if (dataStartIdx < 0) return { issuedStr, timeLabels: [], rows: [], raw: text };
+
+  // ── Data rows ─────────────────────────────────────────────────────────
+  // Each row: "TMP  72 74 76 78 ..."
+  // Row label is left-justified, values are right-justified in fixed columns
+  const rows = [];
+  const colWidth = 3; // each value column is 3 chars wide after the label
+
+  for (let i = dataStartIdx; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    // Skip lines that look like headers (station, copyright, etc.)
+    if (/^KLAS|^\s*\$|^NWS|^National/i.test(line.trim())) continue;
+
+    // Row label: first non-space chars up to first value column
+    // Labels are typically 3-4 chars, left-padded
+    // e.g. "TMP  72 74 76" — label is everything up to col ~5-6
+    // Use a flexible approach: label = first token, values = rest
+    const trimmed = line.trimEnd();
+    if (!trimmed) continue;
+
+    // The label field is 4 chars wide (left-justified) followed by space-separated values
+    // Actually NBM uses left-padded labels in cols 0-3, then values in cols 4+
+    // We'll extract label as the first word, values as remaining tokens
+    const firstSpace = trimmed.search(/\s{2,}|\s(?=\d|\s-|\s\/)/);
+    let label, valueStr;
+
+    if (firstSpace > 0 && firstSpace <= 8) {
+      label    = trimmed.slice(0, firstSpace).trim();
+      valueStr = trimmed.slice(firstSpace);
+    } else {
+      // Fallback: split on first run of spaces
+      const parts = trimmed.split(/\s{2,}/);
+      label    = parts[0].trim();
+      valueStr = parts.slice(1).join('  ');
+    }
+
+    if (!label) continue;
+
+    // Parse values: each is right-justified in a fixed-width field
+    // Values are separated by spaces; missing = '/' or empty
+    const rawVals = valueStr.trim().split(/\s+/);
+    const values  = rawVals.map(v => {
+      if (v === '/' || v === '' || v === 'MM') return null;
+      const n = parseFloat(v);
+      return isNaN(n) ? v : n;  // keep strings like 'T' or wind dirs
+    });
+
+    rows.push({ label, values });
+  }
+
+  return { issuedStr, timeLabels, rows, raw: text, prodKey };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Element metadata: display name, CSS class, unit, description
+const NBM_ELEMENTS = {
+  // NBH/NBS elements
+  TMP:  { name: 'Temperature',       cls: 'nbm-val-tmp',  unit: '°F',  desc: 'Dry-bulb temperature' },
+  DPT:  { name: 'Dewpoint',          cls: 'nbm-val-tlo',  unit: '°F',  desc: 'Dewpoint temperature' },
+  RH:   { name: 'Rel Humidity',      cls: '',             unit: '%',   desc: 'Relative humidity' },
+  SKY:  { name: 'Sky Cover',         cls: 'nbm-val-sky',  unit: '%',   desc: 'Total cloud cover percent' },
+  WDR:  { name: 'Wind Dir',          cls: '',             unit: '°',   desc: 'Wind direction (degrees)' },
+  WSP:  { name: 'Wind Speed',        cls: 'nbm-val-wind', unit: 'mph', desc: 'Sustained wind speed' },
+  WGS:  { name: 'Wind Gust',         cls: 'nbm-val-wind', unit: 'mph', desc: 'Wind gust speed' },
+  'P06': { name: 'PoP 6hr',          cls: 'nbm-val-pop',  unit: '%',   desc: '6-hour probability of precipitation' },
+  'P12': { name: 'PoP 12hr',         cls: 'nbm-val-pop',  unit: '%',   desc: '12-hour probability of precipitation' },
+  'Q06': { name: 'QPF 6hr',          cls: 'nbm-val-qpf',  unit: '"',   desc: '6-hour quantitative precipitation' },
+  'Q12': { name: 'QPF 12hr',         cls: 'nbm-val-qpf',  unit: '"',   desc: '12-hour quantitative precipitation' },
+  'T06': { name: 'T-storm 6hr',      cls: 'nbm-val-pop',  unit: '%',   desc: '6-hour thunderstorm probability' },
+  'T12': { name: 'T-storm 12hr',     cls: 'nbm-val-pop',  unit: '%',   desc: '12-hour thunderstorm probability' },
+  POZ:  { name: 'Prob Freezing',     cls: 'nbm-val-pop',  unit: '%',   desc: 'Probability of freezing precipitation' },
+  POS:  { name: 'Prob Snow',         cls: 'nbm-val-pop',  unit: '%',   desc: 'Probability of snow' },
+  SNW:  { name: 'Snow Amount',       cls: 'nbm-val-qpf',  unit: '"',   desc: '24-hour snowfall amount' },
+  CIG:  { name: 'Ceiling',           cls: '',             unit: '00s', desc: 'Ceiling height (hundreds of feet)' },
+  VIS:  { name: 'Visibility',        cls: '',             unit: 'SM',  desc: 'Visibility in statute miles' },
+  WBGT: { name: 'WBGT ★',           cls: 'nbm-val-wbgt', unit: '°F',  desc: 'Wet Bulb Globe Temp — NEW in NBM 5.0' },
+  // NBE/NBX extended elements
+  MHT:  { name: 'Max Hi Temp',       cls: 'nbm-val-tmp',  unit: '°F',  desc: 'Max daytime temperature' },
+  MLT:  { name: 'Min Lo Temp',       cls: 'nbm-val-tlo',  unit: '°F',  desc: 'Min overnight temperature' },
+  // NBP probabilistic elements
+  'T10': { name: 'Temp 10th%',       cls: 'nbm-val-tlo',  unit: '°F',  desc: '10th percentile temperature' },
+  'T25': { name: 'Temp 25th%',       cls: 'nbm-val-tlo',  unit: '°F',  desc: '25th percentile temperature' },
+  'T50': { name: 'Temp 50th%',       cls: '',             unit: '°F',  desc: 'Median temperature' },
+  'T75': { name: 'Temp 75th%',       cls: 'nbm-val-tmp',  unit: '°F',  desc: '75th percentile temperature' },
+  'T90': { name: 'Temp 90th%',       cls: 'nbm-val-tmp',  unit: '°F',  desc: '90th percentile temperature' },
+  'W10': { name: 'Wind 10th%',       cls: '',             unit: 'mph', desc: '10th percentile wind' },
+  'W25': { name: 'Wind 25th%',       cls: '',             unit: 'mph', desc: '25th percentile wind' },
+  'W50': { name: 'Wind 50th%',       cls: 'nbm-val-wind', unit: 'mph', desc: 'Median wind' },
+  'W75': { name: 'Wind 75th%',       cls: 'nbm-val-wind', unit: 'mph', desc: '75th percentile wind' },
+  'W90': { name: 'Wind 90th%',       cls: 'nbm-val-wind', unit: 'mph', desc: '90th percentile wind' },
+};
+
+function getElemMeta(label) {
+  return NBM_ELEMENTS[label.toUpperCase()] || {
+    name: label, cls: '', unit: '', desc: ''
+  };
+}
+
+// ── Main product renderer ─────────────────────────────────────────────────
+function renderNBMProduct() {
+  const prod = NBM.product;
+  const parsed = NBM.parsed[prod];
+
+  updateNBMProdDesc();
+
+  if (!parsed) {
+    // Show empty state if this product hasn't been fetched
+    const hasFetch = Object.keys(NBM.raw).length > 0;
+    document.getElementById('nbmTableArea').innerHTML = hasFetch
+      ? `<div class="nbm-error">No data for ${prod.toUpperCase()} in this cycle's bulletin.</div>`
+      : `<div class="empty-state"><div class="empty-icon">◈</div>
+           <div class="empty-title">No Data Loaded</div>
+           <div class="empty-msg">Select a cycle and click Fetch Bulletins</div></div>`;
+    document.getElementById('nbmMetaStrip').style.display  = 'none';
+    document.getElementById('nbmSummaryGrid').style.display = 'none';
+    document.getElementById('nbmRawSection').style.display  = 'none';
+    return;
+  }
+
+  // ── Meta strip ────────────────────────────────────────────────────────
+  const metaEl = document.getElementById('nbmMetaStrip');
+  metaEl.style.display = '';
+  metaEl.innerHTML = `
+    <div class="nbm-meta-item">
+      <span class="nbm-meta-label">Station</span>
+      <span class="nbm-meta-val">KLAS — Las Vegas, NV</span>
+    </div>
+    <div class="nbm-meta-item">
+      <span class="nbm-meta-label">Product</span>
+      <span class="nbm-meta-val">${prod.toUpperCase()}</span>
+    </div>
+    <div class="nbm-meta-item">
+      <span class="nbm-meta-label">Issued</span>
+      <span class="nbm-meta-val">${parsed.issuedStr || '—'}</span>
+    </div>
+    <div class="nbm-meta-item">
+      <span class="nbm-meta-label">Columns</span>
+      <span class="nbm-meta-val">${parsed.timeLabels.length} periods</span>
+    </div>
+    <div class="nbm-meta-item">
+      <span class="nbm-meta-label">Elements</span>
+      <span class="nbm-meta-val">${parsed.rows.length} rows</span>
+    </div>
+  `;
+
+  // ── Summary tiles (key elements) ───────────────────────────────────────
+  renderNBMSummaryTiles(parsed);
+
+  // ── Main table ────────────────────────────────────────────────────────
+  renderNBMTable(parsed);
+
+  // ── Raw bulletin ──────────────────────────────────────────────────────
+  const rawSec = document.getElementById('nbmRawSection');
+  rawSec.style.display = '';
+  document.getElementById('nbmRawBox').textContent = NBM.raw[prod] || '';
+}
+
+// ── Summary tiles: extract first available value for key elements ─────────
+function renderNBMSummaryTiles(parsed) {
+  const gridEl = document.getElementById('nbmSummaryGrid');
+  gridEl.style.display = '';
+
+  // Priority elements to show in tiles
+  const TILE_ELEMS = [
+    { label: 'TMP',  cls: 'tmp',  name: 'Temp',       unit: '°F' },
+    { label: 'DPT',  cls: 'tlo',  name: 'Dewpoint',   unit: '°F' },
+    { label: 'WSP',  cls: 'wind', name: 'Wind',        unit: 'mph' },
+    { label: 'WGS',  cls: 'wind', name: 'Gust',        unit: 'mph' },
+    { label: 'SKY',  cls: 'sky',  name: 'Sky Cover',   unit: '%' },
+    { label: 'P06',  cls: 'pop',  name: 'PoP 6hr',    unit: '%' },
+    { label: 'P12',  cls: 'pop',  name: 'PoP 12hr',   unit: '%' },
+    { label: 'Q06',  cls: 'qpf',  name: 'QPF 6hr',    unit: '"' },
+    { label: 'WBGT', cls: 'wbgt', name: 'WBGT ★',     unit: '°F' },
+    { label: 'MHT',  cls: 'tmp',  name: 'Max Hi',     unit: '°F' },
+    { label: 'MLT',  cls: 'tlo',  name: 'Min Lo',     unit: '°F' },
+  ];
+
+  const rowByLabel = {};
+  for (const row of parsed.rows) {
+    rowByLabel[row.label.toUpperCase()] = row;
+  }
+
+  let html = '';
+  for (const t of TILE_ELEMS) {
+    const row = rowByLabel[t.label];
+    if (!row) continue;
+
+    // Find first non-null value and its time label
+    let firstVal = null, firstTime = '';
+    for (let i = 0; i < row.values.length; i++) {
+      if (row.values[i] !== null && row.values[i] !== undefined) {
+        firstVal  = row.values[i];
+        firstTime = parsed.timeLabels[i] || '';
+        break;
+      }
+    }
+
+    const isWBGT = t.label === 'WBGT';
+    const displayVal = firstVal !== null
+      ? (typeof firstVal === 'number' ? firstVal : firstVal)
+      : '—';
+
+    html += `<div class="nbm-tile ${t.cls}${isWBGT ? '' : ''}">
+      <div class="nt-label">${t.name}</div>
+      <div class="nt-val">${displayVal !== '—' ? displayVal + t.unit : '—'}</div>
+      <div class="nt-sub">${firstTime ? 'At ' + firstTime + 'Z' : ''}</div>
+    </div>`;
+  }
+
+  gridEl.innerHTML = html || '<div style="color:var(--text-dimmer);font-family:var(--mono);font-size:12px;">No key elements found in this product</div>';
+}
+
+// ── Main table renderer ───────────────────────────────────────────────────
+function renderNBMTable(parsed) {
+  const tableArea = document.getElementById('nbmTableArea');
+
+  if (!parsed.rows.length) {
+    tableArea.innerHTML = '<div class="nbm-error">Parsed 0 data rows. The bulletin may be malformed.</div>';
+    return;
+  }
+
+  // Build column header row
+  const timeHdr = parsed.timeLabels.map(t =>
+    `<th class="col-hour num">${t}</th>`
+  ).join('');
+
+  // Build data rows
+  const dataRows = parsed.rows.map(row => {
+    const meta = getElemMeta(row.label);
+    const isWBGT = row.label.toUpperCase() === 'WBGT';
+
+    const cells = row.values.map((v, i) => {
+      if (v === null || v === undefined) {
+        return `<td><span class="nbm-val-na">·</span></td>`;
+      }
+      const display = typeof v === 'number'
+        ? (Number.isInteger(v) ? v : v.toFixed(2))
+        : v;
+      return `<td class="${meta.cls}">${display}</td>`;
+    }).join('');
+
+    return `<tr class="${isWBGT ? 'wbgt-row' : ''}">
+      <td class="row-label" title="${meta.desc}">
+        ${meta.name || row.label}
+        ${meta.unit ? `<span style="color:var(--text-dimmer);font-size:9px;margin-left:3px;">${meta.unit}</span>` : ''}
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  tableArea.innerHTML = `
+    <div class="nbm-table-scroll">
+      <table class="nbm-table">
+        <thead>
+          <tr>
+            <th class="row-label">Element</th>
+            ${timeHdr}
+          </tr>
+        </thead>
+        <tbody>
+          ${dataRows}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ── Raw bulletin toggle ───────────────────────────────────────────────────
+document.getElementById('nbmRawToggle').addEventListener('click', () => {
+  const box   = document.getElementById('nbmRawBox');
+  const arrow = document.getElementById('nbmRawArrow');
+  const isOpen = box.style.display !== 'none';
+  box.style.display = isOpen ? 'none' : '';
+  arrow.textContent = isOpen ? '▶' : '▼';
+});
+</script>
+
 </html>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
