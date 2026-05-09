@@ -1382,34 +1382,6 @@ const NBM_PRODUCTS = {
 
 const NBM = { product:'NBH', raw:{}, parsed:{}, fetchedAt:null, fileCycle:null };
 
-// ── Pacific Time helper ───────────────────────────────────────────────────
-function utcHourToPT(utcHour) {
-  // PDT = UTC-7 (Mar–Nov), PST = UTC-8 (Nov–Mar)
-  // Use current date to approximate DST — good enough for operational use
-  const now = new Date();
-  const jan = new Date(now.getFullYear(), 0, 1).getTimezoneOffset();
-  const jul = new Date(now.getFullYear(), 6, 1).getTimezoneOffset();
-  const isDST = Math.min(jan, jul) === now.getTimezoneOffset();
-  // Las Vegas is always in Pacific time
-  const offset = isDST ? -7 : -8;
-  const ptHour = ((utcHour + offset) % 24 + 24) % 24;
-  return String(ptHour).padStart(2, '0');
-}
-
-// Convert a UTC hour token (e.g. "14", "06/12", "23 35|") to a PT label
-function tokenToPT(token) {
-  // Strip non-digit/slash chars
-  const clean = token.replace(/[^0-9\/]/g, '');
-  if (!clean) return '';
-  if (clean.includes('/')) {
-    // "date/hour" format in NBS — take the hour part
-    const h = parseInt(clean.split('/')[1], 10);
-    return isNaN(h) ? '' : utcHourToPT(h);
-  }
-  const h = parseInt(clean, 10);
-  return isNaN(h) ? '' : utcHourToPT(h);
-}
-
 // ── GitHub data URL ───────────────────────────────────────────────────────
 function nbmDataUrl() {
   const owner = document.getElementById('ghOwner')?.value?.trim() || '';
@@ -1499,104 +1471,165 @@ function parseNBMFile(fileText) {
 function parseNBMSection(text, prodKey) {
   const lines = text.replace(/\r/g, '').split('\n');
 
-  // ── Header line ───────────────────────────────────────────────────────
+  // ── Issued time from header line ──────────────────────────────────────
   const headerLine = lines.find(l => /NBM.*GUIDANCE/i.test(l)) || '';
   const dateMatch  = headerLine.match(/(\d{1,2}\/\d{2}\/\d{4})\s+(\d{4})\s+UTC/i);
   const issuedStr  = dateMatch
-    ? `${dateMatch[1]} ${dateMatch[2].slice(0,2)}:${dateMatch[2].slice(2)} UTC`
-    : '';
+    ? `${dateMatch[1]} ${dateMatch[2].slice(0,2)}:${dateMatch[2].slice(2)} UTC` : '';
 
-  // ── Find UTC label line ───────────────────────────────────────────────
-  // For NBH/NBS: " UTC  02 03 04 ..."
-  // For NBE/NBX: " UTC    00  12| 00  12| ..."  (pipe-separated)
-  // For NBP:     " UTC    00  12| 00  12| ..."
+  // ── Detect format: piped (NBE/NBX/NBP) vs space-only (NBH/NBS) ───────
+  const isPiped = lines.some(l => l.includes('|'));
+
+  // ── Find UTC line index ───────────────────────────────────────────────
   const utcLineIdx = lines.findIndex(l => /^\s*UTC\b/i.test(l));
   if (utcLineIdx < 0) return { issuedStr, timeLabels:[], ptLabels:[], rows:[], prodKey };
 
   const utcLine = lines[utcLineIdx];
 
-  // ── Determine column positions from UTC line ──────────────────────────
-  // Strategy: find every run of non-space characters after "UTC" and record
-  // their end-column positions. Values are right-justified to that column.
-  const utcPrefix = utcLine.match(/^\s*UTC\s*/i)?.[0] || 'UTC  ';
-  const labelWidth = utcPrefix.length;
+  // ── Compute label_width = number of chars before the first data value ─
+  const utcMatch = utcLine.match(/^(\s*UTC\s+)/i);
+  const labelWidth = utcMatch ? utcMatch[1].length : 7;
 
-  // For pipe-format (NBE/NBX/NBP) strip pipes first for position finding,
-  // but keep original for label extraction
-  const isPiped = utcLine.includes('|');
-
-  // Extract time tokens and their column end positions
-  const colPositions = [];  // array of { endCol, label }
-  const afterUTC = utcLine.slice(labelWidth);
-
+  // ─────────────────────────────────────────────────────────────────────
+  // PIPED FORMAT (NBE / NBX / NBP)
+  // Each day-group is delimited by |. Labels occupy the first labelWidth chars.
+  // The day-of-week line is the line immediately before the UTC line.
+  // ─────────────────────────────────────────────────────────────────────
   if (isPiped) {
-    // Replace pipes with spaces to find token positions
-    const noPipes = afterUTC.replace(/\|/g, ' ');
-    const tokenRe = /\S+/g;
-    let m;
-    while ((m = tokenRe.exec(noPipes)) !== null) {
-      colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
+    const dayLineIdx = utcLineIdx - 1;
+    const dayLine    = dayLineIdx >= 0 ? lines[dayLineIdx] : '';
+
+    // Build combined time labels: "SUN10/00", "SUN10/12", etc.
+    const timeLabels = [];
+    const ptLabels   = [];
+
+    const daySegments = dayLine.length ? dayLine.slice(labelWidth).split('|') : [];
+    const utcSegments = utcLine.slice(labelWidth).split('|');
+
+    utcSegments.forEach((utcSeg, segIdx) => {
+      const utcTokens = utcSeg.trim().split(/\s+/).filter(Boolean);
+      if (!utcTokens.length) return;
+
+      // Day label: merge label-zone + first segment for first column
+      let dow = '', date = '';
+      if (dayLine.length && daySegments[segIdx] !== undefined) {
+        const labelZone  = segIdx === 0 ? dayLine.slice(0, labelWidth).trim() : '';
+        const daySeg     = daySegments[segIdx] || '';
+        const combined   = (labelZone + ' ' + daySeg).split(/\s+/).filter(Boolean);
+        const isClimo    = daySeg.toUpperCase().includes('CLIMO');
+        dow  = combined.find(t => /^[A-Z]{2,}$/.test(t)) || '';
+        date = isClimo ? 'CLM' : (combined.find(t => /^\d+$/.test(t)) || '');
+      }
+
+      utcTokens.forEach(utcTok => {
+        if (date === 'CLM') {
+          timeLabels.push(`${dow}/CLM`);
+          ptLabels.push('CLM');
+        } else {
+          const label = dow ? `${dow}${date}/${utcTok}` : utcTok;
+          timeLabels.push(label);
+          const h = parseInt(utcTok, 10);
+          ptLabels.push(isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2,'0'));
+        }
+      });
+    });
+
+    // Parse data rows using pipe-split approach
+    const rows = [];
+    const dataStartIdx = utcLineIdx + 1;
+
+    for (let i = dataStartIdx; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      if (/^\s*(FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s)/i.test(line)) continue;
+      if (/^\s*UTC\b/i.test(line)) continue;
+      if (/NBM.*GUIDANCE/i.test(line)) continue;
+      if (/^\s*KLAS\b/i.test(line)) continue;
+
+      const rawLabel = line.slice(0, labelWidth).trim();
+      if (!rawLabel) continue;
+
+      // Split data portion by pipe, then tokenize each segment
+      const dataPart = line.slice(labelWidth);
+      const segments = dataPart.split('|');
+      const values   = [];
+      segments.forEach(seg => {
+        const tokens = seg.trim().split(/\s+/).filter(Boolean);
+        if (!tokens.length) {
+          values.push(null);  // empty segment = missing
+        } else {
+          tokens.forEach(t => {
+            if (t === '/' || t === 'MM') { values.push(null); return; }
+            const n = parseFloat(t);
+            values.push(isNaN(n) ? t : n);
+          });
+        }
+      });
+
+      rows.push({ label: rawLabel, values });
     }
-  } else {
-    const tokenRe = /\S+/g;
-    let m;
-    while ((m = tokenRe.exec(afterUTC)) !== null) {
-      colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
-    }
+
+    return { issuedStr, timeLabels, ptLabels, rows, prodKey };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // SPACE-ONLY FORMAT (NBH / NBS)
+  // Values are right-justified in fixed 3-char columns.
+  // Column positions are derived from token positions in the UTC line.
+  // ─────────────────────────────────────────────────────────────────────
+
+  // Build column end-positions from UTC token positions
+  const colPositions = [];
+  const afterUTC = utcLine.slice(labelWidth);
+  let m;
+  const tokenRe = /\S+/g;
+  while ((m = tokenRe.exec(afterUTC)) !== null) {
+    colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
   }
 
   const timeLabels = colPositions.map(c => c.label);
-  const ptLabels   = timeLabels.map(tokenToPT);
+  const ptLabels   = timeLabels.map(tok => {
+    const h = parseInt(tok.replace(/[^0-9]/g,''), 10);
+    return isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2,'0');
+  });
 
-  // ── Parse data rows ───────────────────────────────────────────────────
-  // Data starts after the UTC line (skip DT/ and FHR lines which are metadata)
   const dataStartIdx = utcLineIdx + 1;
   const rows = [];
-
-  // Determine column width: typically 3 chars each, but NBE/NBX/NBP with pipes
-  // use variable widths. We'll use column END positions derived above.
-  // For each data row, extract values at those positions.
-
-  // Compute column WIDTH for each slot (distance between consecutive endCols)
-  const colWidths = colPositions.map((c, i) => {
-    if (i === 0) return c.endCol - labelWidth;
-    return c.endCol - colPositions[i-1].endCol;
-  });
 
   for (let i = dataStartIdx; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
-
-    // Skip pure metadata lines
     if (/^\s*(DT\s*\/|FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s)/i.test(line)) continue;
-    if (/^\s*UTC\b/i.test(line)) continue;  // second UTC line (NBP has one)
+    if (/^\s*UTC\b/i.test(line)) continue;
     if (/NBM.*GUIDANCE/i.test(line)) continue;
     if (/^\s*KLAS\b/i.test(line)) continue;
-    if (/^\s*$/.test(line)) continue;
 
-    // Extract label: everything before column `labelWidth`, trimmed
-    // NBM labels are left-padded with a space: " TMP", " SLV", etc.
     const rawLabel = line.slice(0, labelWidth).trim();
     if (!rawLabel) continue;
 
-    // Extract values using fixed column end positions
-    const values = colPositions.map((c, i) => {
-      const start = i === 0 ? labelWidth : colPositions[i-1].endCol;
-      const end   = c.endCol;
-      // Clamp to line length
+    // Fixed-width extraction using column end-positions
+    const values = colPositions.map((c, idx) => {
+      const start   = idx === 0 ? labelWidth : colPositions[idx-1].endCol;
+      const end     = c.endCol;
       if (start >= line.length) return null;
-      const cell = line.slice(start, Math.min(end, line.length));
-      // Strip pipes and whitespace
-      const cleaned = cell.replace(/\|/g, '').trim();
-      if (!cleaned || cleaned === '/' || cleaned === 'MM') return null;
-      const n = parseFloat(cleaned);
-      return isNaN(n) ? cleaned : n;
+      const cell    = line.slice(start, Math.min(end, line.length)).replace(/\|/g,'').trim();
+      if (!cell || cell === '/' || cell === 'MM') return null;
+      const n = parseFloat(cell);
+      return isNaN(n) ? cell : n;
     });
 
     rows.push({ label: rawLabel, values });
   }
 
   return { issuedStr, timeLabels, ptLabels, rows, prodKey };
+}
+
+// PT offset helper (PDT=-7, PST=-8)
+function ptOffset() {
+  const now = new Date();
+  const jan = new Date(now.getFullYear(), 0, 1).getTimezoneOffset();
+  const jul = new Date(now.getFullYear(), 6, 1).getTimezoneOffset();
+  return Math.min(jan, jul) === now.getTimezoneOffset() ? -7 : -8;
 }
 
 // ── Element metadata ──────────────────────────────────────────────────────
