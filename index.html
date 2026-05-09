@@ -1726,6 +1726,22 @@ function renderNBMProduct() {
 
   document.getElementById('nbmRawSection').style.display = '';
   document.getElementById('nbmRawBox').textContent = NBM.raw[prod] || '';
+
+  // Inject data key collapsible before raw section
+  const rawSec = document.getElementById('nbmRawSection');
+  const prev = document.getElementById('nbmKeyContainer');
+  if (prev) prev.remove();
+  const kc = document.createElement('div');
+  kc.id = 'nbmKeyContainer';
+  kc.innerHTML = `
+    <div class="nbm-key-toggle" id="nbmKeyToggle">
+      <span class="nbm-key-arrow" id="nbmKeyArrow">&#9654;</span>
+      Data Key — ${NBM_PRODUCTS[prod]?.label || prod}
+    </div>
+    <div class="nbm-key-panel" id="nbmKeyPanel" style="display:none;"></div>
+  `;
+  rawSec.parentNode.insertBefore(kc, rawSec);
+  initNBMKeyToggle(prod);
 }
 
 // ── Summary tiles ─────────────────────────────────────────────────────────
@@ -1826,6 +1842,229 @@ function renderNBMTable(parsed) {
 }
 
 // ── Raw toggle ────────────────────────────────────────────────────────────
+
+// ── Per-product data key (source: vlab.noaa.gov/web/mdl/nbm-textcard-v5.0) ──
+const NBM_KEYS = {
+  NBH: [
+    { section: 'Temperature & Moisture' },
+    { code:'TMP',   unit:'°F',          desc:'2-meter air temperature', std:'TSD' },
+    { code:'TSD',   unit:'°F',          desc:'Std deviation of TMP (model spread)' },
+    { code:'DPT',   unit:'°F',          desc:'2-meter dewpoint temperature', std:'DSD' },
+    { code:'DSD',   unit:'°F',          desc:'Std deviation of DPT' },
+    { code:'WBG',   unit:'°F',          desc:'Wet Bulb Globe Temperature', isNew:true },
+    { section: 'Sky & Visibility' },
+    { code:'SKY',   unit:'%',           desc:'Total sky cover (0=clear, 100=overcast)', std:'SSD' },
+    { code:'SSD',   unit:'%',           desc:'Std deviation of SKY' },
+    { code:'CIG',   unit:'×100 ft',     desc:'Ceiling height; -88 = unlimited/CLR' },
+    { code:'MVC',   unit:'%',           desc:'Prob of mountain obscuration from clouds' },
+    { code:'IFC',   unit:'%',           desc:'Prob of IFR conditions from clouds' },
+    { code:'LIC',   unit:'%',           desc:'Prob of LIFR conditions from clouds' },
+    { code:'LCB',   unit:'×100 ft',     desc:'Lowest cloud base height; -88 = none/CLR' },
+    { code:'VIS',   unit:'×0.1 SM',     desc:'Visibility; 100 = 10 SM or greater' },
+    { code:'MVV',   unit:'%',           desc:'Prob of mountain obscuration from visibility' },
+    { code:'IFV',   unit:'%',           desc:'Prob of IFR conditions from visibility' },
+    { code:'LIV',   unit:'%',           desc:'Prob of LIFR conditions from visibility' },
+    { section: 'Wind' },
+    { code:'WDR',   unit:'×10°',        desc:'Wind direction in tens of degrees (e.g. 25 = 250°)' },
+    { code:'WSP',   unit:'mph',         desc:'Sustained 10-meter wind speed', std:'WSD' },
+    { code:'WSD',   unit:'mph',         desc:'Std deviation of WSP' },
+    { code:'GST',   unit:'mph',         desc:'Wind gust speed', std:'GSD' },
+    { code:'GSD',   unit:'mph',         desc:'Std deviation of GST' },
+    { section: 'Precipitation' },
+    { code:'P01',   unit:'%',           desc:'1-hour probability of precipitation ≥ 0.01"' },
+    { code:'P06',   unit:'%',           desc:'6-hour probability of precipitation ≥ 0.01"' },
+    { code:'Q01',   unit:'in',          desc:'1-hour quantitative precipitation forecast' },
+    { code:'T01',   unit:'%',           desc:'1-hour thunderstorm probability' },
+    { code:'PZR',   unit:'%',           desc:'Probability of freezing precipitation' },
+    { code:'PSN',   unit:'%',           desc:'Probability of snow' },
+    { code:'PPL',   unit:'%',           desc:'Probability of sleet/ice pellets' },
+    { code:'PRA',   unit:'%',           desc:'Probability of rain' },
+    { code:'S01',   unit:'in',          desc:'1-hour snowfall amount' },
+    { code:'I01',   unit:'in',          desc:'1-hour ice accumulation' },
+    { section: 'Boundary Layer & Radiation' },
+    { code:'MHT',   unit:'×100 ft',     desc:'Mixing layer height above ground level' },
+    { code:'TWD',   unit:'×10°',        desc:'Transport wind direction (tens of degrees)' },
+    { code:'TWS',   unit:'mph',         desc:'Transport wind speed' },
+    { code:'SOL',   unit:'×10 W/m²',    desc:'Downward solar radiation (e.g. 100 = 1000 W/m²)' },
+    { section: 'Pressure' },
+    { code:'SLV',   unit:'mb (encoded)',desc:'Sea-level pressure; integer encoding — value + 900 if <100, else value' },
+  ],
+  NBS: [
+    { section: 'Temperature & Moisture' },
+    { code:'TXN',   unit:'°F',          desc:'Max (daytime) and Min (nighttime) temperature', std:'XND' },
+    { code:'XND',   unit:'°F',          desc:'Std deviation of TXN' },
+    { code:'TMP',   unit:'°F',          desc:'2-meter temperature at period end', std:'TSD' },
+    { code:'TSD',   unit:'°F',          desc:'Std deviation of TMP' },
+    { code:'DPT',   unit:'°F',          desc:'2-meter dewpoint', std:'DSD' },
+    { code:'DSD',   unit:'°F',          desc:'Std deviation of DPT' },
+    { code:'WBG',   unit:'°F',          desc:'Wet Bulb Globe Temperature', isNew:true },
+    { section: 'Sky & Visibility' },
+    { code:'SKY',   unit:'%',           desc:'Total sky cover', std:'SSD' },
+    { code:'SSD',   unit:'%',           desc:'Std deviation of SKY' },
+    { code:'CIG',   unit:'×100 ft',     desc:'Ceiling height; -88 = unlimited/CLR' },
+    { code:'IFC',   unit:'%',           desc:'Prob of IFR from clouds' },
+    { code:'LCB',   unit:'×100 ft',     desc:'Lowest cloud base; -88 = none/CLR' },
+    { code:'VIS',   unit:'×0.1 SM',     desc:'Visibility; 100 = 10 SM or greater' },
+    { code:'IFV',   unit:'%',           desc:'Prob of IFR from visibility' },
+    { section: 'Wind' },
+    { code:'WDR',   unit:'×10°',        desc:'Wind direction in tens of degrees' },
+    { code:'WSP',   unit:'mph',         desc:'Sustained wind speed', std:'WSD' },
+    { code:'WSD',   unit:'mph',         desc:'Std deviation of WSP' },
+    { code:'GST',   unit:'mph',         desc:'Wind gust', std:'GSD' },
+    { code:'GSD',   unit:'mph',         desc:'Std deviation of GST' },
+    { section: 'Precipitation' },
+    { code:'P06',   unit:'%',           desc:'6-hour PoP ≥ 0.01"' },
+    { code:'P12',   unit:'%',           desc:'12-hour PoP ≥ 0.01"' },
+    { code:'Q06',   unit:'in',          desc:'6-hour QPF' },
+    { code:'Q12',   unit:'in',          desc:'12-hour QPF' },
+    { code:'DUR',   unit:'hr',          desc:'Duration of precipitation in period' },
+    { code:'T03',   unit:'%',           desc:'3-hour thunderstorm probability' },
+    { code:'T06',   unit:'%',           desc:'6-hour thunderstorm probability' },
+    { code:'T12',   unit:'%',           desc:'12-hour thunderstorm probability' },
+    { code:'PZR',   unit:'%',           desc:'Prob of freezing precipitation' },
+    { code:'PSN',   unit:'%',           desc:'Prob of snow' },
+    { code:'PPL',   unit:'%',           desc:'Prob of sleet' },
+    { code:'PRA',   unit:'%',           desc:'Prob of rain' },
+    { code:'S06',   unit:'in',          desc:'6-hour snowfall' },
+    { code:'I06',   unit:'in',          desc:'6-hour ice accumulation' },
+    { section: 'Boundary Layer & Radiation' },
+    { code:'MHT',   unit:'×100 ft',     desc:'Mixing layer height AGL' },
+    { code:'TWD',   unit:'×10°',        desc:'Transport wind direction' },
+    { code:'TWS',   unit:'mph',         desc:'Transport wind speed' },
+    { code:'SOL',   unit:'×10 W/m²',    desc:'Downward solar radiation' },
+    { section: 'Pressure' },
+    { code:'SLV',   unit:'mb (encoded)',desc:'Sea-level pressure (encoded integer)' },
+  ],
+  NBE: [
+    { section: 'Temperature & Moisture' },
+    { code:'TXN',   unit:'°F',          desc:'Max/Min temperature for 12-hr period', std:'XND' },
+    { code:'XND',   unit:'°F',          desc:'Std deviation of TXN' },
+    { code:'TMP',   unit:'°F',          desc:'2-meter temperature', std:'TSD' },
+    { code:'TSD',   unit:'°F',          desc:'Std deviation of TMP' },
+    { code:'DPT',   unit:'°F',          desc:'Dewpoint', std:'DSD' },
+    { code:'DSD',   unit:'°F',          desc:'Std deviation of DPT' },
+    { code:'WBG',   unit:'°F',          desc:'Wet Bulb Globe Temperature', isNew:true },
+    { section: 'Sky' },
+    { code:'SKY',   unit:'%',           desc:'Sky cover', std:'SSD' },
+    { code:'SSD',   unit:'%',           desc:'Std deviation of SKY' },
+    { section: 'Wind' },
+    { code:'WDR',   unit:'×10°',        desc:'Wind direction' },
+    { code:'WSP',   unit:'mph',         desc:'Wind speed', std:'WSD' },
+    { code:'WSD',   unit:'mph',         desc:'Std deviation of WSP' },
+    { code:'GST',   unit:'mph',         desc:'Wind gust', std:'GSD' },
+    { code:'GSD',   unit:'mph',         desc:'Std deviation of GST' },
+    { section: 'Precipitation' },
+    { code:'P12',   unit:'%',           desc:'12-hour PoP ≥ 0.01"' },
+    { code:'Q12',   unit:'in',          desc:'12-hour QPF' },
+    { code:'Q24',   unit:'in',          desc:'24-hour QPF' },
+    { code:'DUR',   unit:'hr',          desc:'Precipitation duration' },
+    { code:'T12',   unit:'%',           desc:'12-hour thunderstorm probability' },
+    { code:'PZR',   unit:'%',           desc:'Prob of freezing precipitation' },
+    { code:'PSN',   unit:'%',           desc:'Prob of snow' },
+    { code:'PPL',   unit:'%',           desc:'Prob of sleet' },
+    { code:'PRA',   unit:'%',           desc:'Prob of rain' },
+    { code:'S12',   unit:'in',          desc:'12-hour snowfall' },
+    { code:'S24',   unit:'in',          desc:'24-hour snowfall' },
+    { code:'I12',   unit:'in',          desc:'12-hour ice accumulation' },
+    { section: 'Radiation & Pressure' },
+    { code:'SOL',   unit:'×10 W/m²',    desc:'Downward solar radiation' },
+    { code:'SLV',   unit:'mb (encoded)',desc:'Sea-level pressure' },
+  ],
+  NBX: [
+    { section: 'Temperature & Moisture' },
+    { code:'TXN',   unit:'°F',          desc:'Max/Min temperature', std:'XND' },
+    { code:'XND',   unit:'°F',          desc:'Std deviation of TXN' },
+    { code:'TMP',   unit:'°F',          desc:'2-meter temperature', std:'TSD' },
+    { code:'TSD',   unit:'°F',          desc:'Std deviation of TMP' },
+    { code:'DPT',   unit:'°F',          desc:'Dewpoint', std:'DSD' },
+    { code:'DSD',   unit:'°F',          desc:'Std deviation of DPT' },
+    { code:'WBG',   unit:'°F',          desc:'Wet Bulb Globe Temperature', isNew:true },
+    { section: 'Sky' },
+    { code:'SKY',   unit:'%',           desc:'Sky cover', std:'SSD' },
+    { code:'SSD',   unit:'%',           desc:'Std deviation of SKY' },
+    { section: 'Wind' },
+    { code:'WDR',   unit:'×10°',        desc:'Wind direction' },
+    { code:'WSP',   unit:'mph',         desc:'Wind speed', std:'WSD' },
+    { code:'WSD',   unit:'mph',         desc:'Std deviation of WSP' },
+    { code:'GST',   unit:'mph',         desc:'Wind gust', std:'GSD' },
+    { code:'GSD',   unit:'mph',         desc:'Std deviation of GST' },
+    { section: 'Precipitation' },
+    { code:'P12',   unit:'%',           desc:'12-hour PoP ≥ 0.01"' },
+    { code:'Q12',   unit:'in',          desc:'12-hour QPF' },
+    { code:'Q24',   unit:'in',          desc:'24-hour QPF' },
+    { code:'DUR',   unit:'hr',          desc:'Precipitation duration' },
+    { code:'PZR',   unit:'%',           desc:'Prob of freezing precipitation' },
+    { code:'PSN',   unit:'%',           desc:'Prob of snow' },
+    { code:'PPL',   unit:'%',           desc:'Prob of sleet' },
+    { code:'PRA',   unit:'%',           desc:'Prob of rain' },
+    { code:'S12',   unit:'in',          desc:'12-hour snowfall' },
+    { code:'S24',   unit:'in',          desc:'24-hour snowfall' },
+    { code:'I12',   unit:'in',          desc:'12-hour ice accumulation' },
+    { section: 'Radiation & Pressure' },
+    { code:'SOL',   unit:'×10 W/m²',    desc:'Downward solar radiation' },
+    { code:'SLV',   unit:'mb (encoded)',desc:'Sea-level pressure' },
+  ],
+  NBP: [
+    { section: 'Temperature Percentiles (Max/Min)' },
+    { code:'TXNMN', unit:'°F',          desc:'Median Max/Min temperature', std:'TXNSD' },
+    { code:'TXNSD', unit:'°F',          desc:'Std deviation of Max/Min temp' },
+    { code:'TXNPn', unit:'°F',          desc:'Max/Min temp at percentile n (P1/P2/P5/P7/P9 = 10th/25th/50th/75th/90th)' },
+    { section: 'Wind Speed Percentiles' },
+    { code:'WSPPn', unit:'mph',          desc:'12-hr wind speed at percentile n' },
+    { code:'W24Pn', unit:'mph',          desc:'24-hr wind speed at percentile n' },
+    { section: 'Gust Percentiles' },
+    { code:'G24Pn', unit:'mph',          desc:'24-hr wind gust at percentile n' },
+    { section: 'QPF Exceedance' },
+    { code:'Q24Pn', unit:'in',           desc:'24-hr QPF at percentile n' },
+    { section: 'Snowfall Exceedance' },
+    { code:'S24Pn', unit:'in',           desc:'24-hr snowfall at percentile n' },
+    { section: 'Ice Accumulation Exceedance' },
+    { code:'I24Pn', unit:'in',           desc:'24-hr ice accumulation at percentile n' },
+    { section: 'Sea-Level Pressure Percentiles' },
+    { code:'SLPPn', unit:'mb',           desc:'SLP at percentile n; displayed as departure from 1000 mb × 10' },
+    { section: 'Percentile Key' },
+    { code:'P1',    unit:'= 10th %ile',  desc:'10% probability of exceeding this value' },
+    { code:'P2',    unit:'= 25th %ile',  desc:'25% probability of exceeding this value' },
+    { code:'P5',    unit:'= 50th %ile',  desc:'Median — equal chance above or below' },
+    { code:'P7',    unit:'= 75th %ile',  desc:'75% probability of exceeding this value' },
+    { code:'P9',    unit:'= 90th %ile',  desc:'90% probability of exceeding this value' },
+  ],
+};
+
+function renderNBMKey(prodKey) {
+  const entries = NBM_KEYS[prodKey];
+  if (!entries) return '<div style="color:var(--text-dimmer);padding:12px;">No key available for this product.</div>';
+  let h = '<div class="nbm-key-grid">';
+  for (const e of entries) {
+    if (e.section) {
+      h += `<div class="nbm-key-section-label">${e.section}</div>`;
+      continue;
+    }
+    const badge = e.isNew ? '<span class="nbm-key-new">new 5.0</span>' : '';
+    const std   = e.std   ? `<span style="color:var(--text-dimmer);font-size:10px;"> ±${e.std}</span>` : '';
+    h += `<div class="nbm-key-row">
+      <span class="nbm-key-code">${e.code}${std}</span>
+      <span class="nbm-key-unit">${e.unit}</span>
+      <span class="nbm-key-desc">${e.desc}${badge}</span>
+    </div>`;
+  }
+  h += '</div>';
+  return h;
+}
+
+function initNBMKeyToggle(prodKey) {
+  const toggle = document.getElementById('nbmKeyToggle');
+  const panel  = document.getElementById('nbmKeyPanel');
+  const arrow  = document.getElementById('nbmKeyArrow');
+  if (!toggle || !panel) return;
+  panel.innerHTML = renderNBMKey(prodKey);
+  toggle.addEventListener('click', () => {
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : '';
+    arrow.classList.toggle('open', !isOpen);
+  });
+}
+
 document.getElementById('nbmRawToggle').addEventListener('click', () => {
   const box   = document.getElementById('nbmRawBox');
   const arrow = document.getElementById('nbmRawArrow');
