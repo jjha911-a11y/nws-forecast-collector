@@ -1432,7 +1432,9 @@ const NBM = {
 
 // ── MDL URL builder ───────────────────────────────────────────────────────
 function nbmUrl(products, station, cycle) {
-  return `https://www.weather.gov/mdl/nbm_text?ele=${products}&sta=${station}&cyc=${cycle}&download=yes`;
+  // weather.gov/mdl does not send CORS headers — proxy required for browser fetch
+  const direct = `https://www.weather.gov/mdl/nbm_text?ele=${products}&sta=${station}&cyc=${cycle}&download=yes`;
+  return `https://corsproxy.io/?url=${encodeURIComponent(direct)}`;
 }
 
 // ── Determine latest valid cycle ─────────────────────────────────────────
