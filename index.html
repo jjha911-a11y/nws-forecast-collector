@@ -1393,9 +1393,7 @@ function utcHourToPT(utcHour) {
   // Las Vegas is always in Pacific time
   const offset = isDST ? -7 : -8;
   const ptHour = ((utcHour + offset) % 24 + 24) % 24;
-  const suffix = ptHour >= 12 ? 'PM' : 'AM';
-  const h12    = ptHour % 12 || 12;
-  return `${h12}${suffix}`;
+  return String(ptHour).padStart(2, '0');
 }
 
 // Convert a UTC hour token (e.g. "14", "06/12", "23 35|") to a PT label
