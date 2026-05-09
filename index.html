@@ -1338,10 +1338,13 @@ document.getElementById('panel-nbm').innerHTML = `
       </div>
     </div>
     <button class="btn btn-amber" id="btnNBMFetch">
-      Fetch Bulletins
+      Load Bulletins
     </button>
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
       <span class="nbm-version-badge">NBM 5.0</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text-dimmer);">
+        Reads data/nbm_klas.txt · collected by GitHub Actions
+      </span>
       <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="nbmFetchTime"></span>
     </div>
   </div>
@@ -1430,11 +1433,14 @@ const NBM = {
   fetchedAt: null,
 };
 
-// ── MDL URL builder ───────────────────────────────────────────────────────
-function nbmUrl(products, station, cycle) {
-  // weather.gov/mdl does not send CORS headers — proxy required for browser fetch
-  const direct = `https://www.weather.gov/mdl/nbm_text?ele=${products}&sta=${station}&cyc=${cycle}&download=yes`;
-  return `https://corsproxy.io/?url=${encodeURIComponent(direct)}`;
+// ── GitHub raw data URL builder ──────────────────────────────────────────
+// Reads from data/nbm_klas.txt committed by collect_nbm.py via GitHub Actions.
+// Falls back to the user's configured GitHub owner/repo (same as other data files).
+function nbmDataUrl() {
+  const owner = document.getElementById('ghOwner')?.value?.trim() || '';
+  const repo  = document.getElementById('ghRepo')?.value?.trim()  || '';
+  if (!owner || !repo) return null;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/nbm_klas.txt`;
 }
 
 // ── Determine latest valid cycle ─────────────────────────────────────────
@@ -1509,38 +1515,59 @@ async function fetchNBMBulletins() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Fetching…';
 
-  const cycle = NBM.cycle;
-  const allProds = 'nbh,nbs,nbe,nbx,nbp';
-  const url = nbmUrl(allProds, 'klas', cycle);
+  const url = nbmDataUrl();
+  if (!url) {
+    document.getElementById('nbmTableArea').innerHTML = `
+      <div class="nbm-error">
+        ⚠ Enter your GitHub username and repo in the Data Source bar above, then fetch again.
+      </div>`;
+    btn.disabled = false;
+    btn.textContent = 'Fetch Bulletins';
+    return;
+  }
 
   document.getElementById('nbmTableArea').innerHTML = `
     <div class="nbm-loading">
-      <span class="spinner"></span> Fetching NBM ${cycle}Z bulletins for KLAS…
+      <span class="spinner"></span> Loading NBM bulletins from GitHub…
     </div>`;
 
   try {
-    log(`Fetching NBM 5.0 bulletins — ${cycle}Z cycle…`);
+    log('Fetching data/nbm_klas.txt from GitHub…');
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} from MDL`);
+    if (!resp.ok) throw new Error(
+      resp.status === 404
+        ? 'data/nbm_klas.txt not found — run the NBM collector workflow in GitHub Actions first'
+        : `HTTP ${resp.status}`
+    );
     const text = await resp.text();
 
-    // MDL returns all 5 products concatenated — split by product header
-    splitAndParseNBM(text, cycle);
+    // Parse the multi-product file written by collect_nbm.py
+    parseNBMFile(text);
 
     NBM.fetchedAt = new Date();
     document.getElementById('nbmFetchTime').textContent =
-      `Fetched ${NBM.fetchedAt.toUTCString().slice(17,25)} UTC`;
-    log(`NBM bulletins loaded — ${cycle}Z cycle`, 'ok');
+      `Loaded ${NBM.fetchedAt.toUTCString().slice(17,25)} UTC`;
 
+    // Extract cycle from file header if present
+    const cycleMatch = text.match(/^# Cycle: \d+ (\d{2})Z/m);
+    if (cycleMatch) {
+      const fileCycle = cycleMatch[1];
+      document.querySelectorAll('.nbm-cycle-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.cycle === fileCycle);
+      });
+      NBM.cycle = fileCycle;
+    }
+
+    log(`NBM bulletins loaded — ${Object.keys(NBM.parsed).length} products`, 'ok');
     renderNBMProduct();
 
   } catch(e) {
     document.getElementById('nbmTableArea').innerHTML = `
       <div class="nbm-error">
-        ⚠ Failed to fetch NBM bulletins: ${e.message}<br>
+        ⚠ ${e.message}<br>
         <span style="font-size:11px;color:var(--text-dim);">
-          MDL text products are available at 01Z, 07Z, 13Z, and 19Z only.
-          If the selected cycle has not yet been issued, try an earlier cycle.
+          Make sure collect_nbm.yml has run successfully in GitHub Actions
+          and data/nbm_klas.txt exists in your repo.
         </span>
       </div>`;
     log(`NBM fetch failed: ${e.message}`, 'err');
@@ -1561,42 +1588,42 @@ async function fetchNBMBulletins() {
 //  Missing values are represented by spaces or slash (/).
 // ═══════════════════════════════════════════════════════════════════════════
 
-function splitAndParseNBM(rawText, cycle) {
-  // Each product block starts with a line containing station + product code
-  // e.g.  "KLAS   NBM V5.0 NBH GUIDANCE"
-  const prodKeys = ['nbh','nbs','nbe','nbx','nbp'];
+function parseNBMFile(fileText) {
+  // Parse the multi-product file written by collect_nbm.py.
+  // Format:
+  //   # NBM 5.0 KLAS bulletin extract
+  //   # Cycle: YYYYMMDD HHZ
+  //   ### PRODUCT:NBH ###
+  //   KLAS   NBM V5.0 NBH GUIDANCE ...
+  //   ...
+  //   ### PRODUCT:NBS ###
+  //   ...
 
-  // Split by finding header lines for each product
-  const productRegex = /^KLAS\s+NBM\s+V[\d.]+\s+(NBH|NBS|NBE|NBX|NBP)\s+GUIDANCE/im;
+  NBM.raw    = {};
+  NBM.parsed = {};
 
-  // Find all product sections by scanning lines
-  const lines = rawText.split(/\r?\n/);
-  const sections = {};
-  let currentProd = null;
-  let currentLines = [];
-
-  for (const line of lines) {
-    const m = line.match(/^KLAS\s+NBM\s+V[\d.]+\s+(NBH|NBS|NBE|NBX|NBP)\s+GUIDANCE/i);
-    if (m) {
-      if (currentProd && currentLines.length) {
-        sections[currentProd.toLowerCase()] = currentLines.join('\n');
-      }
-      currentProd = m[1];
-      currentLines = [line];
-    } else if (currentProd) {
-      currentLines.push(line);
-    }
-  }
-  if (currentProd && currentLines.length) {
-    sections[currentProd.toLowerCase()] = currentLines.join('\n');
+  // Extract metadata from file header
+  const cycleMatch = fileText.match(/^# Cycle: (\d+) (\d{2})Z/m);
+  if (cycleMatch) {
+    NBM.fileDate  = cycleMatch[1];
+    NBM.fileCycle = cycleMatch[2];
   }
 
-  // Parse each section
-  for (const prod of prodKeys) {
-    if (sections[prod]) {
-      NBM.raw[prod]    = sections[prod];
-      NBM.parsed[prod] = parseNBMSection(sections[prod], prod);
-    }
+  // Split on ### PRODUCT:XYZ ### delimiters
+  const sections = fileText.split(/^### PRODUCT:(\w+) ###$/m);
+  // sections[0] = header block, then alternating [prod_key, content, prod_key, content...]
+
+  for (let i = 1; i < sections.length - 1; i += 2) {
+    const prodKey = sections[i].trim().toLowerCase();
+    const content = sections[i + 1].trim();
+    if (!content) continue;
+    NBM.raw[prodKey]    = content;
+    NBM.parsed[prodKey] = parseNBMSection(content, prodKey);
+  }
+
+  const count = Object.keys(NBM.parsed).length;
+  if (count === 0) {
+    throw new Error('No products found in nbm_klas.txt — file may be malformed');
   }
 }
 
