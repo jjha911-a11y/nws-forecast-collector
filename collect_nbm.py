@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
 collect_nbm.py — NBM 5.0 KLAS bulletin collector
-Discovers the latest available date/cycle from NOMADS dynamically
-rather than assuming today's date (NOMADS only retains ~2 days).
+Discovers the latest available date/cycle from NOMADS dynamically.
 """
 
-import os
 import re
 import sys
 import time
@@ -43,6 +41,8 @@ SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "KLAS-NBM-Collector/1.0 (Jeff KE7KLV)"})
 
 
+# ── NOMADS discovery ──────────────────────────────────────────────────────────
+
 def get_available_dates() -> list[str]:
     resp = SESSION.get(NOMADS_BASE + "/", timeout=30)
     resp.raise_for_status()
@@ -58,7 +58,6 @@ def get_available_cycles(date_str: str) -> list[str]:
         log.warning(f"  403 on {date_str} — skipping")
         return []
     resp.raise_for_status()
-    # Directory listing: both HTML anchor and plain formats
     cycles = set(re.findall(r'href="(\d{2})/"', resp.text))
     cycles |= set(re.findall(r'\b(\d{2})/\s+\d{2}-\w{3}-\d{4}', resp.text))
     result = sorted(cycles, reverse=True)
@@ -67,7 +66,6 @@ def get_available_cycles(date_str: str) -> list[str]:
 
 
 def resolve_best_cycle() -> tuple[str, str] | None:
-    """Walk NOMADS newest-first to find the latest major cycle with text/ files."""
     try:
         dates = get_available_dates()
     except Exception as e:
@@ -97,6 +95,8 @@ def resolve_best_cycle() -> tuple[str, str] | None:
     return None
 
 
+# ── Fetch ─────────────────────────────────────────────────────────────────────
+
 def fetch_product(date_str: str, cycle: str, prod_key: str) -> str | None:
     suffix   = PRODUCTS[prod_key]
     filename = f"blend_{suffix}.t{cycle}z"
@@ -104,9 +104,8 @@ def fetch_product(date_str: str, cycle: str, prod_key: str) -> str | None:
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            log.info(f"Fetching {prod_key} ({filename}) attempt {attempt}/{MAX_RETRIES}")
+            log.info(f"Fetching {prod_key} attempt {attempt}/{MAX_RETRIES}: {filename}")
             resp = SESSION.get(url, timeout=TIMEOUT, stream=True)
-
             if resp.status_code in (404, 403):
                 log.warning(f"  HTTP {resp.status_code} — skipping {prod_key}")
                 return None
@@ -115,37 +114,75 @@ def fetch_product(date_str: str, cycle: str, prod_key: str) -> str | None:
             chunks = []
             for chunk in resp.iter_content(chunk_size=131072, decode_unicode=False):
                 chunks.append(chunk)
-            raw_bytes = b"".join(chunks)
-            log.info(f"  Downloaded {len(raw_bytes):,} bytes")
+            raw = b"".join(chunks)
+            log.info(f"  Downloaded {len(raw):,} bytes")
 
             try:
-                return raw_bytes.decode("utf-8")
+                return raw.decode("utf-8")
             except UnicodeDecodeError:
-                return raw_bytes.decode("latin-1")
+                return raw.decode("latin-1")
 
         except requests.RequestException as e:
-            log.warning(f"  Attempt {attempt} failed: {e}")
+            log.warning(f"  Attempt {attempt} error: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(REQUEST_DELAY * attempt)
 
-    log.error(f"  All {MAX_RETRIES} attempts failed for {prod_key}")
     return None
 
 
-STATION_HDR     = re.compile(rf"^{re.escape(STATION)}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE", re.MULTILINE)
-ANY_STATION_HDR = re.compile(r"^[A-Z]{3,4}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE", re.MULTILINE)
+# ── Station block extraction ──────────────────────────────────────────────────
+
+def extract_station_block(text: str, prod_key: str) -> str | None:
+    """
+    Find the KLAS station block in a bulk NBM text file.
+
+    NBM bulk files contain all ~9000 stations concatenated. Each station
+    block begins with a header line of the form:
+        KLAS   NBM V5.0 NBS GUIDANCE  5/09/2026  0100 UTC
+    or (older/alternate):
+        LAS    NBM V5.0 NBS GUIDANCE  5/09/2026  0100 UTC
+
+    The header may have leading whitespace. We search flexibly for both
+    KLAS and LAS identifiers, then log what we find for diagnostics.
+    """
+
+    # Debug: show the first few station headers to understand the format
+    any_hdr = re.compile(r'^\s*[A-Z]{3,4}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE',
+                         re.MULTILINE)
+    sample = any_hdr.findall(text[:500_000])
+    if sample:
+        log.info(f"  Sample station headers in {prod_key}: {sample[:5]}")
+    else:
+        # Wider fallback: find any line with GUIDANCE in first 200KB
+        guidance_lines = [l.strip() for l in text[:200_000].splitlines()
+                          if 'GUIDANCE' in l][:5]
+        log.warning(f"  No standard headers found in {prod_key}. "
+                    f"Lines with GUIDANCE: {guidance_lines}")
+
+    # Try KLAS first (4-letter ICAO), then LAS (3-letter WMO)
+    for station_id in [STATION, STATION[1:]]:  # KLAS, then LAS
+        pattern = re.compile(
+            rf'^\s*{re.escape(station_id)}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE',
+            re.MULTILINE
+        )
+        m = pattern.search(text)
+        if m:
+            log.info(f"  Found {station_id} header at char {m.start()}: "
+                     f"{text[m.start():m.start()+60].strip()!r}")
+
+            # Find where the next station starts (same pattern, any station)
+            next_m = any_hdr.search(text, m.end())
+            block_end = next_m.start() if next_m else len(text)
+            block = text[m.start():block_end].rstrip()
+            log.info(f"  Extracted block: {len(block):,} chars, "
+                     f"{block.count(chr(10))+1} lines")
+            return block
+
+    log.error(f"  Neither KLAS nor LAS found in {prod_key} bulletin")
+    return None
 
 
-def extract_station_block(text: str) -> str | None:
-    m = STATION_HDR.search(text)
-    if not m:
-        log.warning(f"  {STATION} not found in bulletin")
-        return None
-    nxt = ANY_STATION_HDR.search(text, m.end())
-    block = text[m.start() : nxt.start() if nxt else len(text)].rstrip()
-    log.info(f"  Extracted {STATION} block: {len(block):,} chars")
-    return block
-
+# ── Output ────────────────────────────────────────────────────────────────────
 
 def write_output(blocks: dict, date_str: str, cycle: str) -> None:
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -166,6 +203,8 @@ def write_output(blocks: dict, date_str: str, cycle: str) -> None:
     log.info(f"Wrote {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size:,} bytes)")
 
 
+# ── Git ───────────────────────────────────────────────────────────────────────
+
 def git_commit_push(date_str: str, cycle: str) -> None:
     def run(cmd):
         r = subprocess.run(cmd, capture_output=True, text=True)
@@ -177,13 +216,17 @@ def git_commit_push(date_str: str, cycle: str) -> None:
     run(["git", "pull", "--rebase", "origin", "main"])
     run(["git", "add", str(OUTPUT_FILE)])
 
-    r = subprocess.run(["git", "commit", "-m", f"NBM {cycle}Z {date_str}: update KLAS bulletins"],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        ["git", "commit", "-m", f"NBM {cycle}Z {date_str}: update KLAS bulletins"],
+        capture_output=True, text=True
+    )
     if "nothing to commit" in r.stdout + r.stderr:
         log.info("  Nothing changed — skip push")
         return
     run(["git", "push", "--force-with-lease"])
 
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
     log.info("NBM collector starting")
@@ -194,13 +237,13 @@ def main() -> int:
         return 1
 
     date_str, cycle = result
-    log.info(f"Target: {date_str} {cycle}Z  Station: {STATION}  Output: {OUTPUT_FILE}")
+    log.info(f"Target: {date_str} {cycle}Z  Output: {OUTPUT_FILE}")
 
     blocks: dict[str, str] = {}
     for prod_key in PRODUCTS:
         raw = fetch_product(date_str, cycle, prod_key)
         if raw:
-            block = extract_station_block(raw)
+            block = extract_station_block(raw, prod_key)
             if block:
                 blocks[prod_key] = block
         time.sleep(REQUEST_DELAY)
