@@ -1315,13 +1315,9 @@ try {
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-//  NBM 5.0 GUIDANCE TAB
-//  Fetches text bulletins from MDL (NBS, NBH, NBE, NBX, NBP) for KLAS
-//  and renders them as a structured interactive table matching the
-//  existing dashboard design system.
+//  NBM 5.0 GUIDANCE TAB  —  fixed parser + Pacific Time row
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Replace placeholder panel with full UI ────────────────────────────────
 document.getElementById('panel-nbm').innerHTML = `
   <div class="filter-bar" style="margin-bottom:16px;">
     <div class="filter-group">
@@ -1337,49 +1333,39 @@ document.getElementById('panel-nbm').innerHTML = `
         <button class="nbm-cycle-btn" data-cycle="19">19Z</button>
       </div>
     </div>
-    <button class="btn btn-amber" id="btnNBMFetch">
-      Load Bulletins
-    </button>
+    <button class="btn btn-amber" id="btnNBMFetch">Load Bulletins</button>
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
       <span class="nbm-version-badge">NBM 5.0</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--text-dimmer);">
-        Reads data/nbm_klas.txt · collected by GitHub Actions
+        Reads data/nbm_klas.txt &middot; collected by GitHub Actions
       </span>
       <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="nbmFetchTime"></span>
     </div>
   </div>
 
-  <!-- Product sub-tabs -->
   <div class="nbm-product-nav" id="nbmProductNav">
-    <button class="nbm-prod-btn active" data-prod="nbh">NBH · Hourly</button>
-    <button class="nbm-prod-btn"        data-prod="nbs">NBS · Short</button>
-    <button class="nbm-prod-btn"        data-prod="nbe">NBE · Extended</button>
-    <button class="nbm-prod-btn"        data-prod="nbx">NBX · Super-Ext</button>
-    <button class="nbm-prod-btn"        data-prod="nbp">NBP · Probabilistic</button>
+    <button class="nbm-prod-btn active" data-prod="NBH">NBH &middot; Hourly</button>
+    <button class="nbm-prod-btn"        data-prod="NBS">NBS &middot; Short</button>
+    <button class="nbm-prod-btn"        data-prod="NBE">NBE &middot; Extended</button>
+    <button class="nbm-prod-btn"        data-prod="NBX">NBX &middot; Super-Ext</button>
+    <button class="nbm-prod-btn"        data-prod="NBP">NBP &middot; Probabilistic</button>
   </div>
 
-  <!-- Product description -->
   <div class="nbm-prod-desc" id="nbmProdDesc"></div>
-
-  <!-- Meta strip (issued time, station) -->
   <div class="nbm-meta-strip" id="nbmMetaStrip" style="display:none;"></div>
-
-  <!-- Summary tiles (key element snapshot for current product) -->
   <div class="nbm-summary-grid" id="nbmSummaryGrid" style="display:none;"></div>
 
-  <!-- Main bulletin table -->
   <div id="nbmTableArea">
     <div class="empty-state">
-      <div class="empty-icon">◈</div>
+      <div class="empty-icon">&#9672;</div>
       <div class="empty-title">No Data Loaded</div>
-      <div class="empty-msg">Select a cycle and click Fetch Bulletins</div>
+      <div class="empty-msg">Click Load Bulletins (requires data/nbm_klas.txt in your repo)</div>
     </div>
   </div>
 
-  <!-- Raw bulletin toggle -->
   <div id="nbmRawSection" style="display:none;margin-top:16px;">
     <div class="nbm-raw-toggle" id="nbmRawToggle">
-      <span id="nbmRawArrow">▶</span> Raw Bulletin Text
+      <span id="nbmRawArrow">&#9654;</span> Raw Bulletin Text
     </div>
     <div class="nbm-raw-box" id="nbmRawBox" style="display:none;"></div>
   </div>
@@ -1387,55 +1373,46 @@ document.getElementById('panel-nbm').innerHTML = `
 
 // ── Product metadata ──────────────────────────────────────────────────────
 const NBM_PRODUCTS = {
-  nbh: {
-    label:   'NBM Hourly',
-    period:  'Hours 1–48 (NBM 5.0 extended from 36)',
-    cadence: 'Hourly intervals',
-    desc:    'Short-range hourly guidance. Best for hourly temp, wind, sky, and precip timing. NBM 5.0 adds WBGT and extends to 48 hours.',
-    color:   'var(--amber)',
-  },
-  nbs: {
-    label:   'NBM Short',
-    period:  'Hours 6–72',
-    cadence: '3-hourly intervals',
-    desc:    'Short-range public forecast guidance. Core product for daily hi/lo, wind, PoP, and QPF verification.',
-    color:   'var(--cyan)',
-  },
-  nbe: {
-    label:   'NBM Extended',
-    period:  'Hours 24–192',
-    cadence: '12-hourly intervals',
-    desc:    'Extended range out to 8 days. Useful for planning and climatological verification.',
-    color:   'var(--purple)',
-  },
-  nbx: {
-    label:   'NBM Super-Extended',
-    period:  'Hours 204–264',
-    cadence: '12-hourly intervals',
-    desc:    'Days 9–11 experimental guidance. NBM 5.0 adds significant wave height (SWH) — not relevant for KLAS but present.',
-    color:   '#9b9bcc',
-  },
-  nbp: {
-    label:   'NBM Probabilistic',
-    period:  'Hours 24–264',
-    cadence: '12-hourly intervals',
-    desc:    'Calibrated probability distributions — temp/wind percentiles, QPF exceedances, PoP. Core probabilistic guidance.',
-    color:   'var(--purple)',
-  },
+  NBH: { label:'NBM Hourly',        period:'Hours 1–48',     cadence:'Hourly',     desc:'Short-range hourly. NBM 5.0 adds WBGT, extends to 48 hrs.',   color:'var(--amber)'  },
+  NBS: { label:'NBM Short',         period:'Hours 6–72',     cadence:'3-hourly',   desc:'Short-range public guidance — hi/lo, wind, PoP, QPF.',         color:'var(--cyan)'   },
+  NBE: { label:'NBM Extended',      period:'Hours 24–192',   cadence:'12-hourly',  desc:'Extended range to 8 days.',                                    color:'var(--purple)' },
+  NBX: { label:'NBM Super-Extended',period:'Hours 204–264',  cadence:'12-hourly',  desc:'Days 9–11 guidance.',                                          color:'#9b9bcc'       },
+  NBP: { label:'NBM Probabilistic', period:'Hours 24–264',   cadence:'12-hourly',  desc:'Calibrated percentiles — temp, wind, QPF exceedances.',        color:'var(--purple)' },
 };
 
-// ── State ─────────────────────────────────────────────────────────────────
-const NBM = {
-  cycle:    null,    // '01' | '07' | '13' | '19'
-  product:  'nbh',  // active product key
-  raw:      {},      // raw text keyed by product: { nbh: '...', nbs: '...', ... }
-  parsed:   {},      // parsed data keyed by product
-  fetchedAt: null,
-};
+const NBM = { product:'NBH', raw:{}, parsed:{}, fetchedAt:null, fileCycle:null };
 
-// ── GitHub raw data URL builder ──────────────────────────────────────────
-// Reads from data/nbm_klas.txt committed by collect_nbm.py via GitHub Actions.
-// Falls back to the user's configured GitHub owner/repo (same as other data files).
+// ── Pacific Time helper ───────────────────────────────────────────────────
+function utcHourToPT(utcHour) {
+  // PDT = UTC-7 (Mar–Nov), PST = UTC-8 (Nov–Mar)
+  // Use current date to approximate DST — good enough for operational use
+  const now = new Date();
+  const jan = new Date(now.getFullYear(), 0, 1).getTimezoneOffset();
+  const jul = new Date(now.getFullYear(), 6, 1).getTimezoneOffset();
+  const isDST = Math.min(jan, jul) === now.getTimezoneOffset();
+  // Las Vegas is always in Pacific time
+  const offset = isDST ? -7 : -8;
+  const ptHour = ((utcHour + offset) % 24 + 24) % 24;
+  const suffix = ptHour >= 12 ? 'PM' : 'AM';
+  const h12    = ptHour % 12 || 12;
+  return `${h12}${suffix}`;
+}
+
+// Convert a UTC hour token (e.g. "14", "06/12", "23 35|") to a PT label
+function tokenToPT(token) {
+  // Strip non-digit/slash chars
+  const clean = token.replace(/[^0-9\/]/g, '');
+  if (!clean) return '';
+  if (clean.includes('/')) {
+    // "date/hour" format in NBS — take the hour part
+    const h = parseInt(clean.split('/')[1], 10);
+    return isNaN(h) ? '' : utcHourToPT(h);
+  }
+  const h = parseInt(clean, 10);
+  return isNaN(h) ? '' : utcHourToPT(h);
+}
+
+// ── GitHub data URL ───────────────────────────────────────────────────────
 function nbmDataUrl() {
   const owner = document.getElementById('ghOwner')?.value?.trim() || '';
   const repo  = document.getElementById('ghRepo')?.value?.trim()  || '';
@@ -1443,32 +1420,248 @@ function nbmDataUrl() {
   return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/nbm_klas.txt`;
 }
 
-// ── Determine latest valid cycle ─────────────────────────────────────────
-function latestNBMCycle() {
-  const utcHour = new Date().getUTCHours();
-  const valid = [1, 7, 13, 19];
-  const eligible = valid.filter(c => c <= utcHour);
-  return eligible.length
-    ? String(eligible[eligible.length - 1]).padStart(2, '0')
-    : '19'; // previous day's 19Z
+// ── Fetch ─────────────────────────────────────────────────────────────────
+document.getElementById('btnNBMFetch').addEventListener('click', fetchNBMBulletins);
+
+async function fetchNBMBulletins() {
+  const btn = document.getElementById('btnNBMFetch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Loading&hellip;';
+
+  const url = nbmDataUrl();
+  if (!url) {
+    document.getElementById('nbmTableArea').innerHTML =
+      `<div class="nbm-error">&#9888; Enter your GitHub username and repo in the Data Source bar above, then try again.</div>`;
+    btn.disabled = false; btn.textContent = 'Load Bulletins'; return;
+  }
+
+  document.getElementById('nbmTableArea').innerHTML =
+    `<div class="nbm-loading"><span class="spinner"></span> Loading data/nbm_klas.txt from GitHub&hellip;</div>`;
+
+  try {
+    log('Fetching data/nbm_klas.txt from GitHub\u2026');
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(
+      resp.status === 404
+        ? 'data/nbm_klas.txt not found \u2014 run the NBM collector workflow in GitHub Actions first'
+        : `HTTP ${resp.status}`
+    );
+    const text = await resp.text();
+    parseNBMFile(text);
+
+    NBM.fetchedAt = new Date();
+    document.getElementById('nbmFetchTime').textContent =
+      `Loaded ${NBM.fetchedAt.toUTCString().slice(17,25)} UTC`;
+
+    const cycleMatch = text.match(/^# Cycle: \d+ (\d{2})Z/m);
+    if (cycleMatch) {
+      NBM.fileCycle = cycleMatch[1];
+      document.querySelectorAll('.nbm-cycle-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.cycle === NBM.fileCycle));
+    }
+
+    log(`NBM bulletins loaded \u2014 ${Object.keys(NBM.parsed).length} products`, 'ok');
+    renderNBMProduct();
+
+  } catch(e) {
+    document.getElementById('nbmTableArea').innerHTML =
+      `<div class="nbm-error">&#9888; ${e.message}<br>
+       <span style="font-size:11px;color:var(--text-dim);">
+         Make sure collect_nbm.yml has run successfully and data/nbm_klas.txt exists in your repo.
+       </span></div>`;
+    log(`NBM fetch failed: ${e.message}`, 'err');
+  }
+
+  btn.disabled = false; btn.textContent = 'Load Bulletins';
 }
 
-// ── Init cycle buttons ────────────────────────────────────────────────────
-function initNBMCycleButtons() {
-  const best = latestNBMCycle();
-  document.querySelectorAll('.nbm-cycle-btn').forEach(btn => {
-    if (btn.dataset.cycle === best) btn.classList.add('active');
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.nbm-cycle-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      NBM.cycle = btn.dataset.cycle;
-    });
+// ── File parser ───────────────────────────────────────────────────────────
+function parseNBMFile(fileText) {
+  NBM.raw = {}; NBM.parsed = {};
+
+  const sections = fileText.split(/^### PRODUCT:(\w+) ###$/m);
+  for (let i = 1; i < sections.length - 1; i += 2) {
+    const prodKey = sections[i].trim().toUpperCase();
+    const content = sections[i + 1].trim();
+    if (!content) continue;
+    NBM.raw[prodKey]    = content;
+    NBM.parsed[prodKey] = parseNBMSection(content, prodKey);
+  }
+
+  if (!Object.keys(NBM.parsed).length)
+    throw new Error('No products found in nbm_klas.txt \u2014 file may be malformed');
+}
+
+// ── Section parser ────────────────────────────────────────────────────────
+// NBM fixed-width format: label in cols 0-4 (left of first value), then
+// values in 3-char wide columns (right-justified, packed with NO spaces).
+// Rows like SLV, CIG, VIS, LCB, MHT, SOL pack 3-digit/signed values solid.
+// We use fixed-width column extraction keyed off the UTC header line.
+
+function parseNBMSection(text, prodKey) {
+  const lines = text.replace(/\r/g, '').split('\n');
+
+  // ── Header line ───────────────────────────────────────────────────────
+  const headerLine = lines.find(l => /NBM.*GUIDANCE/i.test(l)) || '';
+  const dateMatch  = headerLine.match(/(\d{1,2}\/\d{2}\/\d{4})\s+(\d{4})\s+UTC/i);
+  const issuedStr  = dateMatch
+    ? `${dateMatch[1]} ${dateMatch[2].slice(0,2)}:${dateMatch[2].slice(2)} UTC`
+    : '';
+
+  // ── Find UTC label line ───────────────────────────────────────────────
+  // For NBH/NBS: " UTC  02 03 04 ..."
+  // For NBE/NBX: " UTC    00  12| 00  12| ..."  (pipe-separated)
+  // For NBP:     " UTC    00  12| 00  12| ..."
+  const utcLineIdx = lines.findIndex(l => /^\s*UTC\b/i.test(l));
+  if (utcLineIdx < 0) return { issuedStr, timeLabels:[], ptLabels:[], rows:[], prodKey };
+
+  const utcLine = lines[utcLineIdx];
+
+  // ── Determine column positions from UTC line ──────────────────────────
+  // Strategy: find every run of non-space characters after "UTC" and record
+  // their end-column positions. Values are right-justified to that column.
+  const utcPrefix = utcLine.match(/^\s*UTC\s*/i)?.[0] || 'UTC  ';
+  const labelWidth = utcPrefix.length;
+
+  // For pipe-format (NBE/NBX/NBP) strip pipes first for position finding,
+  // but keep original for label extraction
+  const isPiped = utcLine.includes('|');
+
+  // Extract time tokens and their column end positions
+  const colPositions = [];  // array of { endCol, label }
+  const afterUTC = utcLine.slice(labelWidth);
+
+  if (isPiped) {
+    // Replace pipes with spaces to find token positions
+    const noPipes = afterUTC.replace(/\|/g, ' ');
+    const tokenRe = /\S+/g;
+    let m;
+    while ((m = tokenRe.exec(noPipes)) !== null) {
+      colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
+    }
+  } else {
+    const tokenRe = /\S+/g;
+    let m;
+    while ((m = tokenRe.exec(afterUTC)) !== null) {
+      colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
+    }
+  }
+
+  const timeLabels = colPositions.map(c => c.label);
+  const ptLabels   = timeLabels.map(tokenToPT);
+
+  // ── Parse data rows ───────────────────────────────────────────────────
+  // Data starts after the UTC line (skip DT/ and FHR lines which are metadata)
+  const dataStartIdx = utcLineIdx + 1;
+  const rows = [];
+
+  // Determine column width: typically 3 chars each, but NBE/NBX/NBP with pipes
+  // use variable widths. We'll use column END positions derived above.
+  // For each data row, extract values at those positions.
+
+  // Compute column WIDTH for each slot (distance between consecutive endCols)
+  const colWidths = colPositions.map((c, i) => {
+    if (i === 0) return c.endCol - labelWidth;
+    return c.endCol - colPositions[i-1].endCol;
   });
-  NBM.cycle = best;
-}
-initNBMCycleButtons();
 
-// ── Product tab click ─────────────────────────────────────────────────────
+  for (let i = dataStartIdx; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+
+    // Skip pure metadata lines
+    if (/^\s*(DT\s*\/|FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s)/i.test(line)) continue;
+    if (/^\s*UTC\b/i.test(line)) continue;  // second UTC line (NBP has one)
+    if (/NBM.*GUIDANCE/i.test(line)) continue;
+    if (/^\s*KLAS\b/i.test(line)) continue;
+    if (/^\s*$/.test(line)) continue;
+
+    // Extract label: everything before column `labelWidth`, trimmed
+    // NBM labels are left-padded with a space: " TMP", " SLV", etc.
+    const rawLabel = line.slice(0, labelWidth).trim();
+    if (!rawLabel) continue;
+
+    // Extract values using fixed column end positions
+    const values = colPositions.map((c, i) => {
+      const start = i === 0 ? labelWidth : colPositions[i-1].endCol;
+      const end   = c.endCol;
+      // Clamp to line length
+      if (start >= line.length) return null;
+      const cell = line.slice(start, Math.min(end, line.length));
+      // Strip pipes and whitespace
+      const cleaned = cell.replace(/\|/g, '').trim();
+      if (!cleaned || cleaned === '/' || cleaned === 'MM') return null;
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? cleaned : n;
+    });
+
+    rows.push({ label: rawLabel, values });
+  }
+
+  return { issuedStr, timeLabels, ptLabels, rows, prodKey };
+}
+
+// ── Element metadata ──────────────────────────────────────────────────────
+const NBM_ELEMENTS = {
+  TMP:   { name:'Temperature',      cls:'nbm-val-tmp',  unit:'°F',   desc:'2m temperature' },
+  TSD:   { name:'Temp Std Dev',     cls:'',             unit:'°F',   desc:'Temperature uncertainty' },
+  DPT:   { name:'Dewpoint',         cls:'nbm-val-tlo',  unit:'°F',   desc:'Dewpoint temperature' },
+  DSD:   { name:'Dewpt Std Dev',    cls:'',             unit:'°F',   desc:'Dewpoint uncertainty' },
+  WBG:   { name:'WBGT ★',          cls:'nbm-val-wbgt', unit:'°F',   desc:'Wet Bulb Globe Temp — new in NBM 5.0' },
+  SKY:   { name:'Sky Cover',        cls:'nbm-val-sky',  unit:'%',    desc:'Total cloud cover' },
+  SSD:   { name:'Sky Std Dev',      cls:'',             unit:'%',    desc:'Sky cover uncertainty' },
+  WDR:   { name:'Wind Dir',         cls:'',             unit:'°×10', desc:'Wind direction (tens of degrees)' },
+  WSP:   { name:'Wind Speed',       cls:'nbm-val-wind', unit:'mph',  desc:'Sustained 10m wind' },
+  WSD:   { name:'Wind Std Dev',     cls:'',             unit:'mph',  desc:'Wind speed uncertainty' },
+  GST:   { name:'Wind Gust',        cls:'nbm-val-wind', unit:'mph',  desc:'Peak wind gust' },
+  GSD:   { name:'Gust Std Dev',     cls:'',             unit:'mph',  desc:'Gust uncertainty' },
+  P01:   { name:'PoP 1hr',          cls:'nbm-val-pop',  unit:'%',    desc:'1-hour precip probability' },
+  P06:   { name:'PoP 6hr',          cls:'nbm-val-pop',  unit:'%',    desc:'6-hour precip probability' },
+  P12:   { name:'PoP 12hr',         cls:'nbm-val-pop',  unit:'%',    desc:'12-hour precip probability' },
+  Q01:   { name:'QPF 1hr',          cls:'nbm-val-qpf',  unit:'"',    desc:'1-hour quantitative precip' },
+  Q06:   { name:'QPF 6hr',          cls:'nbm-val-qpf',  unit:'"',    desc:'6-hour quantitative precip' },
+  Q12:   { name:'QPF 12hr',         cls:'nbm-val-qpf',  unit:'"',    desc:'12-hour quantitative precip' },
+  Q24:   { name:'QPF 24hr',         cls:'nbm-val-qpf',  unit:'"',    desc:'24-hour quantitative precip' },
+  T01:   { name:'T-storm 1hr',      cls:'nbm-val-pop',  unit:'%',    desc:'1-hour thunderstorm prob' },
+  T03:   { name:'T-storm 3hr',      cls:'nbm-val-pop',  unit:'%',    desc:'3-hour thunderstorm prob' },
+  T06:   { name:'T-storm 6hr',      cls:'nbm-val-pop',  unit:'%',    desc:'6-hour thunderstorm prob' },
+  T12:   { name:'T-storm 12hr',     cls:'nbm-val-pop',  unit:'%',    desc:'12-hour thunderstorm prob' },
+  PZR:   { name:'Prob Freezing',    cls:'nbm-val-pop',  unit:'%',    desc:'Freezing precip probability' },
+  PSN:   { name:'Prob Snow',        cls:'nbm-val-pop',  unit:'%',    desc:'Snow probability' },
+  PPL:   { name:'Prob Sleet',       cls:'nbm-val-pop',  unit:'%',    desc:'Sleet probability' },
+  PRA:   { name:'Prob Rain',        cls:'nbm-val-pop',  unit:'%',    desc:'Rain probability' },
+  S01:   { name:'Snow 1hr',         cls:'nbm-val-qpf',  unit:'"',    desc:'1-hour snowfall' },
+  S06:   { name:'Snow 6hr',         cls:'nbm-val-qpf',  unit:'"',    desc:'6-hour snowfall' },
+  S12:   { name:'Snow 12hr',        cls:'nbm-val-qpf',  unit:'"',    desc:'12-hour snowfall' },
+  S24:   { name:'Snow 24hr',        cls:'nbm-val-qpf',  unit:'"',    desc:'24-hour snowfall' },
+  SLV:   { name:'Sea Level Pres',   cls:'',             unit:'mb',   desc:'Sea-level pressure (integer mb; 1000 + value/10 for values <500, else value)' },
+  I01:   { name:'Ice 1hr',          cls:'nbm-val-qpf',  unit:'"',    desc:'1-hour ice accumulation' },
+  I06:   { name:'Ice 6hr',          cls:'nbm-val-qpf',  unit:'"',    desc:'6-hour ice accumulation' },
+  I12:   { name:'Ice 12hr',         cls:'nbm-val-qpf',  unit:'"',    desc:'12-hour ice accumulation' },
+  CIG:   { name:'Ceiling',          cls:'',             unit:'×100ft',desc:'Ceiling height in hundreds of feet; -88 = unlimited' },
+  MVC:   { name:'Mtn Obscure',      cls:'nbm-val-pop',  unit:'%',    desc:'Mountain obscuration probability' },
+  IFC:   { name:'IFR Cloud',        cls:'nbm-val-pop',  unit:'%',    desc:'IFR conditions from cloud probability' },
+  LIC:   { name:'LIFR Cloud',       cls:'nbm-val-pop',  unit:'%',    desc:'LIFR from cloud probability' },
+  LCB:   { name:'Lowest Cloud Base',cls:'',             unit:'×100ft',desc:'Lowest cloud base in hundreds of feet; -88 = none/clear' },
+  VIS:   { name:'Visibility',       cls:'',             unit:'×0.1SM',desc:'Visibility in tenths of statute miles (100 = 10SM+)' },
+  MVV:   { name:'Mtn Vis',          cls:'nbm-val-pop',  unit:'%',    desc:'Mountain obscuration from visibility' },
+  IFV:   { name:'IFR Vis',          cls:'nbm-val-pop',  unit:'%',    desc:'IFR conditions from visibility probability' },
+  LIV:   { name:'LIFR Vis',         cls:'nbm-val-pop',  unit:'%',    desc:'LIFR from visibility probability' },
+  MHT:   { name:'Mixing Height',    cls:'',             unit:'×100ft',desc:'Mixing layer height in hundreds of feet AGL' },
+  TWD:   { name:'Transport Wind Dir',cls:'',            unit:'°×10', desc:'Transport wind direction (tens of degrees)' },
+  TWS:   { name:'Transport Wind Spd',cls:'nbm-val-wind',unit:'mph',  desc:'Transport wind speed' },
+  SOL:   { name:'Solar Rad',        cls:'nbm-val-wbgt', unit:'W/m²×10',desc:'Downward solar radiation (×10 W/m²; 100 = 1000 W/m²)' },
+  DUR:   { name:'Precip Duration',  cls:'nbm-val-pop',  unit:'hr',   desc:'Precipitation duration' },
+  TXN:   { name:'Max/Min Temp',     cls:'nbm-val-tmp',  unit:'°F',   desc:'Max (day) / Min (night) temperature' },
+  XND:   { name:'MaxMin Std Dev',   cls:'',             unit:'°F',   desc:'Max/Min temp uncertainty' },
+};
+
+function getElemMeta(label) {
+  const upper = label.toUpperCase().replace(/\s+/g,'');
+  return NBM_ELEMENTS[upper] || { name:label, cls:'', unit:'', desc:'' };
+}
+
+// ── Product tab switching ─────────────────────────────────────────────────
 document.querySelectorAll('.nbm-prod-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.nbm-prod-btn').forEach(b => b.classList.remove('active'));
@@ -1479,428 +1672,133 @@ document.querySelectorAll('.nbm-prod-btn').forEach(btn => {
   });
 });
 
-// ── Product description ───────────────────────────────────────────────────
 function updateNBMProdDesc() {
   const p = NBM_PRODUCTS[NBM.product];
   if (!p) return;
   document.getElementById('nbmProdDesc').innerHTML = `
-    <div class="npd-item">
-      <span class="npd-label">Product</span>
-      <span class="npd-val" style="color:${p.color};">${p.label}</span>
-    </div>
-    <div class="npd-item">
-      <span class="npd-label">Period</span>
-      <span class="npd-val">${p.period}</span>
-    </div>
-    <div class="npd-item">
-      <span class="npd-label">Cadence</span>
-      <span class="npd-val">${p.cadence}</span>
-    </div>
-    <div class="npd-item" style="flex:2;">
-      <span class="npd-label">Description</span>
-      <span class="npd-val" style="color:var(--text-dim);font-size:11px;">${p.desc}</span>
-    </div>
+    <div class="npd-item"><span class="npd-label">Product</span>
+      <span class="npd-val" style="color:${p.color};">${p.label}</span></div>
+    <div class="npd-item"><span class="npd-label">Period</span>
+      <span class="npd-val">${p.period}</span></div>
+    <div class="npd-item"><span class="npd-label">Cadence</span>
+      <span class="npd-val">${p.cadence}</span></div>
+    <div class="npd-item" style="flex:2;"><span class="npd-label">Description</span>
+      <span class="npd-val" style="color:var(--text-dim);font-size:11px;">${p.desc}</span></div>
   `;
 }
 updateNBMProdDesc();
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  FETCH
-// ═══════════════════════════════════════════════════════════════════════════
-
-document.getElementById('btnNBMFetch').addEventListener('click', fetchNBMBulletins);
-
-async function fetchNBMBulletins() {
-  const btn = document.getElementById('btnNBMFetch');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Fetching…';
-
-  const url = nbmDataUrl();
-  if (!url) {
-    document.getElementById('nbmTableArea').innerHTML = `
-      <div class="nbm-error">
-        ⚠ Enter your GitHub username and repo in the Data Source bar above, then fetch again.
-      </div>`;
-    btn.disabled = false;
-    btn.textContent = 'Fetch Bulletins';
-    return;
-  }
-
-  document.getElementById('nbmTableArea').innerHTML = `
-    <div class="nbm-loading">
-      <span class="spinner"></span> Loading NBM bulletins from GitHub…
-    </div>`;
-
-  try {
-    log('Fetching data/nbm_klas.txt from GitHub…');
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(
-      resp.status === 404
-        ? 'data/nbm_klas.txt not found — run the NBM collector workflow in GitHub Actions first'
-        : `HTTP ${resp.status}`
-    );
-    const text = await resp.text();
-
-    // Parse the multi-product file written by collect_nbm.py
-    parseNBMFile(text);
-
-    NBM.fetchedAt = new Date();
-    document.getElementById('nbmFetchTime').textContent =
-      `Loaded ${NBM.fetchedAt.toUTCString().slice(17,25)} UTC`;
-
-    // Extract cycle from file header if present
-    const cycleMatch = text.match(/^# Cycle: \d+ (\d{2})Z/m);
-    if (cycleMatch) {
-      const fileCycle = cycleMatch[1];
-      document.querySelectorAll('.nbm-cycle-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.cycle === fileCycle);
-      });
-      NBM.cycle = fileCycle;
-    }
-
-    log(`NBM bulletins loaded — ${Object.keys(NBM.parsed).length} products`, 'ok');
-    renderNBMProduct();
-
-  } catch(e) {
-    document.getElementById('nbmTableArea').innerHTML = `
-      <div class="nbm-error">
-        ⚠ ${e.message}<br>
-        <span style="font-size:11px;color:var(--text-dim);">
-          Make sure collect_nbm.yml has run successfully in GitHub Actions
-          and data/nbm_klas.txt exists in your repo.
-        </span>
-      </div>`;
-    log(`NBM fetch failed: ${e.message}`, 'err');
-  }
-
-  btn.disabled = false;
-  btn.textContent = 'Fetch Bulletins';
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  PARSER — NBM fixed-width ASCII bulletin format
-//  Format identical to NBM v4.3 (confirmed per SCN 26-24)
-//
-//  Each product section begins with a header line:
-//    "KLAS   NBM V5.0 NBH GUIDANCE  5/08/2026  1300 UTC"
-//  Followed by element rows in fixed-width columns.
-//  UTC hour labels appear on the first data line.
-//  Missing values are represented by spaces or slash (/).
-// ═══════════════════════════════════════════════════════════════════════════
-
-function parseNBMFile(fileText) {
-  // Parse the multi-product file written by collect_nbm.py.
-  // Format:
-  //   # NBM 5.0 KLAS bulletin extract
-  //   # Cycle: YYYYMMDD HHZ
-  //   ### PRODUCT:NBH ###
-  //   KLAS   NBM V5.0 NBH GUIDANCE ...
-  //   ...
-  //   ### PRODUCT:NBS ###
-  //   ...
-
-  NBM.raw    = {};
-  NBM.parsed = {};
-
-  // Extract metadata from file header
-  const cycleMatch = fileText.match(/^# Cycle: (\d+) (\d{2})Z/m);
-  if (cycleMatch) {
-    NBM.fileDate  = cycleMatch[1];
-    NBM.fileCycle = cycleMatch[2];
-  }
-
-  // Split on ### PRODUCT:XYZ ### delimiters
-  const sections = fileText.split(/^### PRODUCT:(\w+) ###$/m);
-  // sections[0] = header block, then alternating [prod_key, content, prod_key, content...]
-
-  for (let i = 1; i < sections.length - 1; i += 2) {
-    const prodKey = sections[i].trim().toLowerCase();
-    const content = sections[i + 1].trim();
-    if (!content) continue;
-    NBM.raw[prodKey]    = content;
-    NBM.parsed[prodKey] = parseNBMSection(content, prodKey);
-  }
-
-  const count = Object.keys(NBM.parsed).length;
-  if (count === 0) {
-    throw new Error('No products found in nbm_klas.txt — file may be malformed');
-  }
-}
-
-function parseNBMSection(text, prodKey) {
-  const lines = text.split(/\r?\n/);
-  if (!lines.length) return null;
-
-  // ── Header line: extract issued time ─────────────────────────────────
-  // "KLAS   NBM V5.0 NBH GUIDANCE  5/08/2026  1300 UTC"
-  const headerLine = lines[0];
-  const dateMatch = headerLine.match(/(\d{1,2}\/\d{2}\/\d{4})\s+(\d{4})\s+UTC/i);
-  let issuedStr = '';
-  if (dateMatch) {
-    const [, datePart, timePart] = dateMatch;
-    issuedStr = `${datePart} ${timePart.slice(0,2)}:${timePart.slice(2)} UTC`;
-  }
-
-  // ── UTC time label line ───────────────────────────────────────────────
-  // "UTC  14 15 16 17 18 19 20 21 22 23 00 01 ..."
-  // For NBS/NBE/NBX: "UTC  06/12 18/06 ..."  (date/hour pairs)
-  let timeLabels = [];
-  let dataStartIdx = -1;
-
-  for (let i = 1; i < lines.length; i++) {
-    const l = lines[i].trim();
-    if (/^UTC\b/i.test(l)) {
-      // Parse time labels after "UTC"
-      const rest = lines[i].replace(/^UTC\s*/i, '');
-      // Split on whitespace, treating multi-char tokens (e.g. "06/12") as one
-      timeLabels = rest.trim().split(/\s+/).filter(Boolean);
-      dataStartIdx = i + 1;
-      break;
-    }
-  }
-
-  if (dataStartIdx < 0) return { issuedStr, timeLabels: [], rows: [], raw: text };
-
-  // ── Data rows ─────────────────────────────────────────────────────────
-  // Each row: "TMP  72 74 76 78 ..."
-  // Row label is left-justified, values are right-justified in fixed columns
-  const rows = [];
-  const colWidth = 3; // each value column is 3 chars wide after the label
-
-  for (let i = dataStartIdx; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    // Skip lines that look like headers (station, copyright, etc.)
-    if (/^KLAS|^\s*\$|^NWS|^National/i.test(line.trim())) continue;
-
-    // Row label: first non-space chars up to first value column
-    // Labels are typically 3-4 chars, left-padded
-    // e.g. "TMP  72 74 76" — label is everything up to col ~5-6
-    // Use a flexible approach: label = first token, values = rest
-    const trimmed = line.trimEnd();
-    if (!trimmed) continue;
-
-    // The label field is 4 chars wide (left-justified) followed by space-separated values
-    // Actually NBM uses left-padded labels in cols 0-3, then values in cols 4+
-    // We'll extract label as the first word, values as remaining tokens
-    const firstSpace = trimmed.search(/\s{2,}|\s(?=\d|\s-|\s\/)/);
-    let label, valueStr;
-
-    if (firstSpace > 0 && firstSpace <= 8) {
-      label    = trimmed.slice(0, firstSpace).trim();
-      valueStr = trimmed.slice(firstSpace);
-    } else {
-      // Fallback: split on first run of spaces
-      const parts = trimmed.split(/\s{2,}/);
-      label    = parts[0].trim();
-      valueStr = parts.slice(1).join('  ');
-    }
-
-    if (!label) continue;
-
-    // Parse values: each is right-justified in a fixed-width field
-    // Values are separated by spaces; missing = '/' or empty
-    const rawVals = valueStr.trim().split(/\s+/);
-    const values  = rawVals.map(v => {
-      if (v === '/' || v === '' || v === 'MM') return null;
-      const n = parseFloat(v);
-      return isNaN(n) ? v : n;  // keep strings like 'T' or wind dirs
-    });
-
-    rows.push({ label, values });
-  }
-
-  return { issuedStr, timeLabels, rows, raw: text, prodKey };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  RENDER
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Element metadata: display name, CSS class, unit, description
-const NBM_ELEMENTS = {
-  // NBH/NBS elements
-  TMP:  { name: 'Temperature',       cls: 'nbm-val-tmp',  unit: '°F',  desc: 'Dry-bulb temperature' },
-  DPT:  { name: 'Dewpoint',          cls: 'nbm-val-tlo',  unit: '°F',  desc: 'Dewpoint temperature' },
-  RH:   { name: 'Rel Humidity',      cls: '',             unit: '%',   desc: 'Relative humidity' },
-  SKY:  { name: 'Sky Cover',         cls: 'nbm-val-sky',  unit: '%',   desc: 'Total cloud cover percent' },
-  WDR:  { name: 'Wind Dir',          cls: '',             unit: '°',   desc: 'Wind direction (degrees)' },
-  WSP:  { name: 'Wind Speed',        cls: 'nbm-val-wind', unit: 'mph', desc: 'Sustained wind speed' },
-  WGS:  { name: 'Wind Gust',         cls: 'nbm-val-wind', unit: 'mph', desc: 'Wind gust speed' },
-  'P06': { name: 'PoP 6hr',          cls: 'nbm-val-pop',  unit: '%',   desc: '6-hour probability of precipitation' },
-  'P12': { name: 'PoP 12hr',         cls: 'nbm-val-pop',  unit: '%',   desc: '12-hour probability of precipitation' },
-  'Q06': { name: 'QPF 6hr',          cls: 'nbm-val-qpf',  unit: '"',   desc: '6-hour quantitative precipitation' },
-  'Q12': { name: 'QPF 12hr',         cls: 'nbm-val-qpf',  unit: '"',   desc: '12-hour quantitative precipitation' },
-  'T06': { name: 'T-storm 6hr',      cls: 'nbm-val-pop',  unit: '%',   desc: '6-hour thunderstorm probability' },
-  'T12': { name: 'T-storm 12hr',     cls: 'nbm-val-pop',  unit: '%',   desc: '12-hour thunderstorm probability' },
-  POZ:  { name: 'Prob Freezing',     cls: 'nbm-val-pop',  unit: '%',   desc: 'Probability of freezing precipitation' },
-  POS:  { name: 'Prob Snow',         cls: 'nbm-val-pop',  unit: '%',   desc: 'Probability of snow' },
-  SNW:  { name: 'Snow Amount',       cls: 'nbm-val-qpf',  unit: '"',   desc: '24-hour snowfall amount' },
-  CIG:  { name: 'Ceiling',           cls: '',             unit: '00s', desc: 'Ceiling height (hundreds of feet)' },
-  VIS:  { name: 'Visibility',        cls: '',             unit: 'SM',  desc: 'Visibility in statute miles' },
-  WBGT: { name: 'WBGT ★',           cls: 'nbm-val-wbgt', unit: '°F',  desc: 'Wet Bulb Globe Temp — NEW in NBM 5.0' },
-  // NBE/NBX extended elements
-  MHT:  { name: 'Max Hi Temp',       cls: 'nbm-val-tmp',  unit: '°F',  desc: 'Max daytime temperature' },
-  MLT:  { name: 'Min Lo Temp',       cls: 'nbm-val-tlo',  unit: '°F',  desc: 'Min overnight temperature' },
-  // NBP probabilistic elements
-  'T10': { name: 'Temp 10th%',       cls: 'nbm-val-tlo',  unit: '°F',  desc: '10th percentile temperature' },
-  'T25': { name: 'Temp 25th%',       cls: 'nbm-val-tlo',  unit: '°F',  desc: '25th percentile temperature' },
-  'T50': { name: 'Temp 50th%',       cls: '',             unit: '°F',  desc: 'Median temperature' },
-  'T75': { name: 'Temp 75th%',       cls: 'nbm-val-tmp',  unit: '°F',  desc: '75th percentile temperature' },
-  'T90': { name: 'Temp 90th%',       cls: 'nbm-val-tmp',  unit: '°F',  desc: '90th percentile temperature' },
-  'W10': { name: 'Wind 10th%',       cls: '',             unit: 'mph', desc: '10th percentile wind' },
-  'W25': { name: 'Wind 25th%',       cls: '',             unit: 'mph', desc: '25th percentile wind' },
-  'W50': { name: 'Wind 50th%',       cls: 'nbm-val-wind', unit: 'mph', desc: 'Median wind' },
-  'W75': { name: 'Wind 75th%',       cls: 'nbm-val-wind', unit: 'mph', desc: '75th percentile wind' },
-  'W90': { name: 'Wind 90th%',       cls: 'nbm-val-wind', unit: 'mph', desc: '90th percentile wind' },
-};
-
-function getElemMeta(label) {
-  return NBM_ELEMENTS[label.toUpperCase()] || {
-    name: label, cls: '', unit: '', desc: ''
-  };
-}
-
-// ── Main product renderer ─────────────────────────────────────────────────
+// ── Main renderer ─────────────────────────────────────────────────────────
 function renderNBMProduct() {
-  const prod = NBM.product;
+  const prod   = NBM.product;
   const parsed = NBM.parsed[prod];
-
   updateNBMProdDesc();
 
   if (!parsed) {
-    // Show empty state if this product hasn't been fetched
     const hasFetch = Object.keys(NBM.raw).length > 0;
     document.getElementById('nbmTableArea').innerHTML = hasFetch
-      ? `<div class="nbm-error">No data for ${prod.toUpperCase()} in this cycle's bulletin.</div>`
-      : `<div class="empty-state"><div class="empty-icon">◈</div>
+      ? `<div class="nbm-error">No data for ${prod} in this bulletin.</div>`
+      : `<div class="empty-state"><div class="empty-icon">&#9672;</div>
            <div class="empty-title">No Data Loaded</div>
-           <div class="empty-msg">Select a cycle and click Fetch Bulletins</div></div>`;
-    document.getElementById('nbmMetaStrip').style.display  = 'none';
-    document.getElementById('nbmSummaryGrid').style.display = 'none';
-    document.getElementById('nbmRawSection').style.display  = 'none';
+           <div class="empty-msg">Click Load Bulletins</div></div>`;
+    document.getElementById('nbmMetaStrip').style.display   = 'none';
+    document.getElementById('nbmSummaryGrid').style.display  = 'none';
+    document.getElementById('nbmRawSection').style.display   = 'none';
     return;
   }
 
-  // ── Meta strip ────────────────────────────────────────────────────────
+  // Meta strip
   const metaEl = document.getElementById('nbmMetaStrip');
   metaEl.style.display = '';
   metaEl.innerHTML = `
-    <div class="nbm-meta-item">
-      <span class="nbm-meta-label">Station</span>
-      <span class="nbm-meta-val">KLAS — Las Vegas, NV</span>
-    </div>
-    <div class="nbm-meta-item">
-      <span class="nbm-meta-label">Product</span>
-      <span class="nbm-meta-val">${prod.toUpperCase()}</span>
-    </div>
-    <div class="nbm-meta-item">
-      <span class="nbm-meta-label">Issued</span>
-      <span class="nbm-meta-val">${parsed.issuedStr || '—'}</span>
-    </div>
-    <div class="nbm-meta-item">
-      <span class="nbm-meta-label">Columns</span>
-      <span class="nbm-meta-val">${parsed.timeLabels.length} periods</span>
-    </div>
-    <div class="nbm-meta-item">
-      <span class="nbm-meta-label">Elements</span>
-      <span class="nbm-meta-val">${parsed.rows.length} rows</span>
-    </div>
+    <div class="nbm-meta-item"><span class="nbm-meta-label">Station</span>
+      <span class="nbm-meta-val">KLAS &mdash; Las Vegas, NV</span></div>
+    <div class="nbm-meta-item"><span class="nbm-meta-label">Product</span>
+      <span class="nbm-meta-val">${prod}</span></div>
+    <div class="nbm-meta-item"><span class="nbm-meta-label">Issued</span>
+      <span class="nbm-meta-val">${parsed.issuedStr || '&mdash;'}</span></div>
+    <div class="nbm-meta-item"><span class="nbm-meta-label">Periods</span>
+      <span class="nbm-meta-val">${parsed.timeLabels.length}</span></div>
+    <div class="nbm-meta-item"><span class="nbm-meta-label">Elements</span>
+      <span class="nbm-meta-val">${parsed.rows.length} rows</span></div>
   `;
 
-  // ── Summary tiles (key elements) ───────────────────────────────────────
   renderNBMSummaryTiles(parsed);
-
-  // ── Main table ────────────────────────────────────────────────────────
   renderNBMTable(parsed);
 
-  // ── Raw bulletin ──────────────────────────────────────────────────────
-  const rawSec = document.getElementById('nbmRawSection');
-  rawSec.style.display = '';
+  document.getElementById('nbmRawSection').style.display = '';
   document.getElementById('nbmRawBox').textContent = NBM.raw[prod] || '';
 }
 
-// ── Summary tiles: extract first available value for key elements ─────────
+// ── Summary tiles ─────────────────────────────────────────────────────────
 function renderNBMSummaryTiles(parsed) {
   const gridEl = document.getElementById('nbmSummaryGrid');
   gridEl.style.display = '';
 
-  // Priority elements to show in tiles
-  const TILE_ELEMS = [
-    { label: 'TMP',  cls: 'tmp',  name: 'Temp',       unit: '°F' },
-    { label: 'DPT',  cls: 'tlo',  name: 'Dewpoint',   unit: '°F' },
-    { label: 'WSP',  cls: 'wind', name: 'Wind',        unit: 'mph' },
-    { label: 'WGS',  cls: 'wind', name: 'Gust',        unit: 'mph' },
-    { label: 'SKY',  cls: 'sky',  name: 'Sky Cover',   unit: '%' },
-    { label: 'P06',  cls: 'pop',  name: 'PoP 6hr',    unit: '%' },
-    { label: 'P12',  cls: 'pop',  name: 'PoP 12hr',   unit: '%' },
-    { label: 'Q06',  cls: 'qpf',  name: 'QPF 6hr',    unit: '"' },
-    { label: 'WBGT', cls: 'wbgt', name: 'WBGT ★',     unit: '°F' },
-    { label: 'MHT',  cls: 'tmp',  name: 'Max Hi',     unit: '°F' },
-    { label: 'MLT',  cls: 'tlo',  name: 'Min Lo',     unit: '°F' },
+  const TILES = [
+    { label:'TMP',  cls:'tmp',  name:'Temp',      unit:'°F'  },
+    { label:'DPT',  cls:'tlo',  name:'Dewpoint',  unit:'°F'  },
+    { label:'WSP',  cls:'wind', name:'Wind',       unit:'mph' },
+    { label:'GST',  cls:'wind', name:'Gust',       unit:'mph' },
+    { label:'SKY',  cls:'sky',  name:'Sky Cover',  unit:'%'   },
+    { label:'P06',  cls:'pop',  name:'PoP 6hr',   unit:'%'   },
+    { label:'P12',  cls:'pop',  name:'PoP 12hr',  unit:'%'   },
+    { label:'Q06',  cls:'qpf',  name:'QPF 6hr',   unit:'"'   },
+    { label:'WBG',  cls:'wbgt', name:'WBGT ★',    unit:'°F'  },
+    { label:'TXN',  cls:'tmp',  name:'Max/Min',    unit:'°F'  },
   ];
 
   const rowByLabel = {};
-  for (const row of parsed.rows) {
-    rowByLabel[row.label.toUpperCase()] = row;
-  }
+  for (const row of parsed.rows) rowByLabel[row.label.toUpperCase()] = row;
 
   let html = '';
-  for (const t of TILE_ELEMS) {
+  for (const t of TILES) {
     const row = rowByLabel[t.label];
     if (!row) continue;
-
-    // Find first non-null value and its time label
     let firstVal = null, firstTime = '';
     for (let i = 0; i < row.values.length; i++) {
       if (row.values[i] !== null && row.values[i] !== undefined) {
-        firstVal  = row.values[i];
-        firstTime = parsed.timeLabels[i] || '';
-        break;
+        firstVal = row.values[i]; firstTime = parsed.timeLabels[i] || ''; break;
       }
     }
-
-    const isWBGT = t.label === 'WBGT';
-    const displayVal = firstVal !== null
-      ? (typeof firstVal === 'number' ? firstVal : firstVal)
-      : '—';
-
-    html += `<div class="nbm-tile ${t.cls}${isWBGT ? '' : ''}">
+    html += `<div class="nbm-tile ${t.cls}">
       <div class="nt-label">${t.name}</div>
-      <div class="nt-val">${displayVal !== '—' ? displayVal + t.unit : '—'}</div>
-      <div class="nt-sub">${firstTime ? 'At ' + firstTime + 'Z' : ''}</div>
+      <div class="nt-val">${firstVal !== null ? firstVal + t.unit : '&mdash;'}</div>
+      <div class="nt-sub">${firstTime ? firstTime + 'Z' : ''}</div>
     </div>`;
   }
-
-  gridEl.innerHTML = html || '<div style="color:var(--text-dimmer);font-family:var(--mono);font-size:12px;">No key elements found in this product</div>';
+  gridEl.innerHTML = html || '<div style="color:var(--text-dimmer);font-family:var(--mono);font-size:12px;">No key elements in this product</div>';
 }
 
-// ── Main table renderer ───────────────────────────────────────────────────
+// ── Table renderer ────────────────────────────────────────────────────────
 function renderNBMTable(parsed) {
   const tableArea = document.getElementById('nbmTableArea');
-
   if (!parsed.rows.length) {
-    tableArea.innerHTML = '<div class="nbm-error">Parsed 0 data rows. The bulletin may be malformed.</div>';
+    tableArea.innerHTML = '<div class="nbm-error">No data rows parsed. Check raw bulletin below.</div>';
     return;
   }
 
-  // Build column header row
-  const timeHdr = parsed.timeLabels.map(t =>
-    `<th class="col-hour num">${t}</th>`
-  ).join('');
+  // UTC header row
+  const utcCells = parsed.timeLabels.map(t =>
+    `<th class="col-hour num">${t}</th>`).join('');
 
-  // Build data rows
+  // Pacific Time header row
+  const ptCells = parsed.ptLabels.map(t =>
+    `<th class="col-hour num" style="color:var(--cyan);font-size:9px;">${t}</th>`).join('');
+
+  // Data rows
   const dataRows = parsed.rows.map(row => {
-    const meta = getElemMeta(row.label);
-    const isWBGT = row.label.toUpperCase() === 'WBGT';
+    const meta   = getElemMeta(row.label);
+    const isWBGT = row.label.toUpperCase() === 'WBG';
 
-    const cells = row.values.map((v, i) => {
-      if (v === null || v === undefined) {
-        return `<td><span class="nbm-val-na">·</span></td>`;
-      }
-      const display = typeof v === 'number'
-        ? (Number.isInteger(v) ? v : v.toFixed(2))
-        : v;
+    const cells = row.values.map(v => {
+      if (v === null || v === undefined)
+        return `<td><span class="nbm-val-na">&middot;</span></td>`;
+      // Special display for unlimited ceiling / clear sky
+      if ((row.label === 'CIG' || row.label === 'LCB') && v === -88)
+        return `<td style="color:var(--text-dimmer);font-size:10px;">CLR</td>`;
+      const display = typeof v === 'number' && !Number.isInteger(v)
+        ? v.toFixed(2) : v;
       return `<td class="${meta.cls}">${display}</td>`;
     }).join('');
 
@@ -1918,25 +1816,26 @@ function renderNBMTable(parsed) {
       <table class="nbm-table">
         <thead>
           <tr>
-            <th class="row-label">Element</th>
-            ${timeHdr}
+            <th class="row-label">Element</th>${utcCells}
+          </tr>
+          <tr>
+            <th class="row-label" style="color:var(--cyan);font-size:10px;">Pacific Time</th>${ptCells}
           </tr>
         </thead>
-        <tbody>
-          ${dataRows}
-        </tbody>
+        <tbody>${dataRows}</tbody>
       </table>
     </div>`;
 }
 
-// ── Raw bulletin toggle ───────────────────────────────────────────────────
+// ── Raw toggle ────────────────────────────────────────────────────────────
 document.getElementById('nbmRawToggle').addEventListener('click', () => {
   const box   = document.getElementById('nbmRawBox');
   const arrow = document.getElementById('nbmRawArrow');
-  const isOpen = box.style.display !== 'none';
-  box.style.display = isOpen ? 'none' : '';
-  arrow.textContent = isOpen ? '▶' : '▼';
+  const open  = box.style.display !== 'none';
+  box.style.display = open ? 'none' : '';
+  arrow.innerHTML   = open ? '&#9654;' : '&#9660;';
 });
+
 </script>
 
 </html>
