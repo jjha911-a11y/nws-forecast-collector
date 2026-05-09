@@ -1499,26 +1499,46 @@ function parseNBMSection(text, prodKey) {
     const dayLineIdx = utcLineIdx - 1;
     const dayLine    = dayLineIdx >= 0 ? lines[dayLineIdx] : '';
 
-    // Build combined time labels: "SUN10/00", "SUN10/12", etc.
+    // ── Build time labels from UTC + day-of-week lines ──────────────────
+    // Split both lines on | — first token of each segment is the label/DOW.
+    // The first segment of the UTC line contains "UTC" as its label token,
+    // so the actual UTC hours start at index 1 in its token list.
+    // The first segment of the day line may have "SUN" in the label zone
+    // (before the first |) for NBX, or in the data zone for NBE/NBP.
+    // We handle both by splitting the whole first segment on whitespace.
+
     const timeLabels = [];
     const ptLabels   = [];
 
-    const daySegments = dayLine.length ? dayLine.slice(labelWidth).split('|') : [];
-    const utcSegments = utcLine.slice(labelWidth).split('|');
+    const daySegs = dayLine ? dayLine.split('|') : [];
+    const utcSegs = utcLine.split('|');
 
-    utcSegments.forEach((utcSeg, segIdx) => {
-      const utcTokens = utcSeg.trim().split(/\s+/).filter(Boolean);
+    // First UTC segment: tokens are ["UTC", "00", "12"] or ["UTC", "12"]
+    // Remaining UTC segments: tokens are ["00", "12"] etc.
+    utcSegs.forEach((utcSeg, segIdx) => {
+      let utcTokens = utcSeg.trim().split(/\s+/).filter(Boolean);
+      if (segIdx === 0) utcTokens = utcTokens.slice(1); // drop "UTC" label
       if (!utcTokens.length) return;
 
-      // Day label: merge label-zone + first segment for first column
+      // Day-of-week for this segment
       let dow = '', date = '';
-      if (dayLine.length && daySegments[segIdx] !== undefined) {
-        const labelZone  = segIdx === 0 ? dayLine.slice(0, labelWidth).trim() : '';
-        const daySeg     = daySegments[segIdx] || '';
-        const combined   = (labelZone + ' ' + daySeg).split(/\s+/).filter(Boolean);
-        const isClimo    = daySeg.toUpperCase().includes('CLIMO');
-        dow  = combined.find(t => /^[A-Z]{2,}$/.test(t)) || '';
-        date = isClimo ? 'CLM' : (combined.find(t => /^\d+$/.test(t)) || '');
+      if (daySegs[segIdx] !== undefined) {
+        // For first segment, DOW may be in the portion before the first |
+        // which for NBX puts it before labelWidth. Grab all tokens from the segment.
+        const dayTokens = daySegs[segIdx].trim().split(/\s+/).filter(Boolean);
+        const isClimo   = daySegs[segIdx].toUpperCase().includes('CLIMO');
+        // Also grab any DOW that ended up in the label zone (NBX first seg)
+        if (segIdx === 0 && dayTokens.length > 0 && !/^[A-Z]{3}$/.test(dayTokens[0])) {
+          // dayTokens[0] is a number (date only, DOW was in label zone)
+          // find DOW from dayLine up to first pipe
+          const beforePipe = dayLine.split('|')[0];
+          const bpTokens   = beforePipe.trim().split(/\s+/).filter(Boolean);
+          dow  = bpTokens.find(t => /^[A-Z]{3}$/.test(t)) || '';
+          date = isClimo ? 'CLM' : (bpTokens.find(t => /^\d+$/.test(t)) || '');
+        } else {
+          dow  = isClimo ? (dayTokens[0] || '') : (dayTokens.find(t => /^[A-Z]{3}$/.test(t)) || '');
+          date = isClimo ? 'CLM' : (dayTokens.find(t => /^\d+$/.test(t)) || '');
+        }
       }
 
       utcTokens.forEach(utcTok => {
@@ -1526,45 +1546,49 @@ function parseNBMSection(text, prodKey) {
           timeLabels.push(`${dow}/CLM`);
           ptLabels.push('CLM');
         } else {
-          const label = dow ? `${dow}${date}/${utcTok}` : utcTok;
-          timeLabels.push(label);
+          timeLabels.push(dow ? `${dow}${date}/${utcTok}` : utcTok);
           const h = parseInt(utcTok, 10);
           ptLabels.push(isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2,'0'));
         }
       });
     });
 
-    // Parse data rows using pipe-split approach
+    // ── Parse data rows ──────────────────────────────────────────────────
+    // Split each line on ALL pipes. The first segment contains the label
+    // as its first whitespace token, followed by the first group's values.
+    // This avoids any labelWidth assumption and handles 3-digit values
+    // (SLV, SLPP*) that overflow the label field.
+
+    const parseToken = t => {
+      if (!t || t === '/' || t === 'MM') return null;
+      const n = parseFloat(t);
+      return isNaN(n) ? t : n;
+    };
+
     const rows = [];
     const dataStartIdx = utcLineIdx + 1;
 
     for (let i = dataStartIdx; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
-      if (/^\s*(FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s)/i.test(line)) continue;
+      // Skip pure metadata rows
+      if (/^\s*(FHR\b|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s)/i.test(line)) continue;
       if (/^\s*UTC\b/i.test(line)) continue;
       if (/NBM.*GUIDANCE/i.test(line)) continue;
       if (/^\s*KLAS\b/i.test(line)) continue;
 
-      const rawLabel = line.slice(0, labelWidth).trim();
-      if (!rawLabel) continue;
+      const segs   = line.split('|');
+      const first  = segs[0].trim().split(/\s+/).filter(Boolean);
+      if (!first.length) continue;
 
-      // Split data portion by pipe, then tokenize each segment
-      const dataPart = line.slice(labelWidth);
-      const segments = dataPart.split('|');
-      const values   = [];
-      segments.forEach(seg => {
-        const tokens = seg.trim().split(/\s+/).filter(Boolean);
-        if (!tokens.length) {
-          values.push(null);  // empty segment = missing
-        } else {
-          tokens.forEach(t => {
-            if (t === '/' || t === 'MM') { values.push(null); return; }
-            const n = parseFloat(t);
-            values.push(isNaN(n) ? t : n);
-          });
-        }
-      });
+      const rawLabel = first[0];            // first token is always the element code
+      const values   = first.slice(1).map(parseToken);  // remaining tokens in first seg
+
+      // Remaining pipe-segments
+      for (let s = 1; s < segs.length; s++) {
+        const tokens = segs[s].trim().split(/\s+/).filter(Boolean);
+        tokens.forEach(t => values.push(parseToken(t)));
+      }
 
       rows.push({ label: rawLabel, values });
     }
