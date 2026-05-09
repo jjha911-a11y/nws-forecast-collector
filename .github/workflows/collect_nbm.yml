@@ -1,0 +1,50 @@
+name: Collect NBM Bulletins
+
+on:
+  schedule:
+    # Run at 02Z, 08Z, 14Z, 20Z — one hour after each NBM bulletin cycle
+    # (01Z, 07Z, 13Z, 19Z) to ensure NOMADS files are fully written
+    - cron: '0 2 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 14 * * *'
+    - cron: '0 20 * * *'
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  collect-nbm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: write   # required to commit data/nbm_klas.txt back to repo
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          # Full history needed for git pull --rebase in the script
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Collect NBM bulletins for KLAS
+        run: python collect_nbm.py
+
+      - name: Confirm output
+        run: |
+          if [ -f data/nbm_klas.txt ]; then
+            echo "✓ data/nbm_klas.txt written"
+            wc -l data/nbm_klas.txt
+            head -8 data/nbm_klas.txt
+          else
+            echo "✗ data/nbm_klas.txt not found"
+            exit 1
+          fi
