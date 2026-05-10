@@ -1598,24 +1598,35 @@ function parseNBMSection(text, prodKey) {
 
   // ─────────────────────────────────────────────────────────────────────
   // SPACE-ONLY FORMAT (NBH / NBS)
-  // Values are right-justified in fixed 3-char columns.
-  // Column positions are derived from token positions in the UTC line.
+  // All values are right-justified in strict 3-character fixed-width columns.
+  // The UTC line has 2-digit hour labels padded to 3 chars (" 02", " 03"),
+  // but rows like SLV, CIG, VIS, LCB have 3-digit values that start one
+  // column earlier than a naive UTC-token-position parser expects.
+  // Fix: find the true data start column (leftmost data char across rows),
+  // then extract all values in strict 3-char slices from that column.
   // ─────────────────────────────────────────────────────────────────────
 
-  // Build column end-positions from UTC token positions
-  const colPositions = [];
-  const afterUTC = utcLine.slice(labelWidth);
-  let m;
-  const tokenRe = /\S+/g;
-  while ((m = tokenRe.exec(afterUTC)) !== null) {
-    colPositions.push({ endCol: labelWidth + m.index + m[0].length, label: m[0] });
+  // Count time labels from UTC line tokens (used for label array only)
+  const utcTokens = utcLine.slice(labelWidth).match(/\S+/g) || [];
+  const timeLabels = utcTokens.map(t => t.trim()).filter(Boolean);
+  const ptLabels   = timeLabels.map(tok => {
+    const h = parseInt(tok.replace(/[^0-9]/g, ''), 10);
+    return isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2, '0');
+  });
+
+  // Find true data start: scan data lines for the leftmost column that
+  // contains a digit or '-' (start of a value).
+  let trueDataStart = labelWidth;
+  for (let i = utcLineIdx + 1; i < Math.min(utcLineIdx + 15, lines.length); i++) {
+    const l = lines[i];
+    if (!l.trim()) continue;
+    if (/^\s*(DT\s*\/|FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s|UTC\b|KLAS\b|NBM)/i.test(l)) continue;
+    // Find where the label ends and data begins on this row
+    const m = l.match(/^(\s*\S+\s*)/);
+    if (m) trueDataStart = Math.min(trueDataStart, m[1].length);
   }
 
-  const timeLabels = colPositions.map(c => c.label);
-  const ptLabels   = timeLabels.map(tok => {
-    const h = parseInt(tok.replace(/[^0-9]/g,''), 10);
-    return isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2,'0');
-  });
+  const COL_W = 3;  // NBM text bulletins use 3-char fixed-width value columns
 
   const dataStartIdx = utcLineIdx + 1;
   const rows = [];
@@ -1628,21 +1639,24 @@ function parseNBMSection(text, prodKey) {
     if (/NBM.*GUIDANCE/i.test(line)) continue;
     if (/^\s*KLAS\b/i.test(line)) continue;
 
-    const rawLabel = line.slice(0, labelWidth).trim();
+    const rawLabel = line.slice(0, trueDataStart).trim();
     if (!rawLabel) continue;
 
-    // Fixed-width extraction using column end-positions
-    const values = colPositions.map((c, idx) => {
-      const start   = idx === 0 ? labelWidth : colPositions[idx-1].endCol;
-      const end     = c.endCol;
-      if (start >= line.length) return null;
-      const cell    = line.slice(start, Math.min(end, line.length)).replace(/\|/g,'').trim();
-      if (!cell || cell === '/' || cell === 'MM') return null;
-      const n = parseFloat(cell);
-      return isNaN(n) ? cell : n;
-    });
+    // Extract values in strict 3-char slices from trueDataStart
+    const dataPart = line.slice(trueDataStart);
+    const values = [];
+    for (let c = 0; c < dataPart.length; c += COL_W) {
+      const cell = dataPart.slice(c, c + COL_W).trim();
+      if (!cell || cell === '/' || cell === 'MM') {
+        values.push(null);
+      } else {
+        const n = parseFloat(cell);
+        values.push(isNaN(n) ? cell : n);
+      }
+    }
 
-    rows.push({ label: rawLabel, values });
+    // Trim values to match number of time labels
+    rows.push({ label: rawLabel, values: values.slice(0, timeLabels.length) });
   }
 
   return { issuedStr, timeLabels, ptLabels, rows, prodKey };
