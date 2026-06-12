@@ -2484,7 +2484,12 @@ function buildPairs() {
     const lead    = pf(f.lead_days);
     const fcstHi  = pf(f.high_temp_f);
     const fcstLo  = pf(f.low_temp_f);
-    const fcstWnd = pf(f.max_wind_speed_mph);
+    // Forecast wind: NDFD grids carry whole knots; the API converts to km/h
+    // and the collector to mph, creating false decimal precision (12.7 mph
+    // is exactly 11 kt). CLI observed max wind is integer mph, so round the
+    // forecast to whole mph for an apples-to-apples comparison.
+    const fcstWndRaw = pf(f.max_wind_speed_mph);
+    const fcstWnd    = fcstWndRaw !== null ? Math.round(fcstWndRaw) : null;
     const fcstSky = pf(f.sky_cover_pct);
     const fcstPop = pf(f.precip_prob_pct);
 
@@ -2664,7 +2669,7 @@ function renderTable() {
       <td class="num">${fmtN(p.fcstLo,0,'°')}</td>
       <td class="num">${fmtN(p.obsLo,0,'°')}</td>
       <td class="num err-cell ${errClass(p.errLo,WARN_TEMP,BAD_TEMP)}">${errSign(p.errLo)}</td>
-      <td class="num">${fmtN(p.fcstWnd,1)}</td>
+      <td class="num">${fmtN(p.fcstWnd,0)}</td>
       <td class="num">${fmtN(p.obsWnd,0)}</td>
       <td class="num err-cell ${errClass(p.errWnd,WARN_WIND,BAD_WIND)}">${errSign(p.errWnd)}</td>
       <td class="num">${fmtN(p.fcstSky,0,'%')}</td>
@@ -4745,7 +4750,7 @@ function scanEvents() {
         severity: abs >= EVT_THRESHOLDS.windErrBad ? 3 : 2,
         title: `Wind ${p.errWnd > 0 ? 'over' : 'under'}forecast by ${abs.toFixed(1)} mph`,
         details: [
-          { label: 'Fcst Wind', val: p.fcstWnd?.toFixed(1) + ' mph' },
+          { label: 'Fcst Wind', val: p.fcstWnd?.toFixed(0) + ' mph' },
           { label: 'Obs Wind',  val: p.obsWnd?.toFixed(0)  + ' mph' },
           { label: 'Error',     val: (p.errWnd > 0 ? '+' : '') + p.errWnd.toFixed(1) + ' mph' },
           { label: 'Obs Gust',  val: p.obsGust ? p.obsGust.toFixed(0)+' mph' : '—' },
