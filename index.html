@@ -499,10 +499,16 @@ input[type="file"] { display: none; }
 </header>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     DATA SOURCE BAR
+     DATA SOURCE — slim status row; full controls collapse behind toggle
 ════════════════════════════════════════════════════════════════════════ -->
-<div class="datasource-bar">
-  <span class="label">Data source</span>
+<div class="ds-toggle-row">
+  <button class="ds-toggle" id="dsToggle" aria-expanded="false" aria-controls="dsBar">
+    <span class="ds-toggle-arrow" id="dsToggleArrow">&#9654;</span> Data Source
+  </button>
+  <span class="ds-summary" id="dsSummary">Auto-loading from repository&hellip;</span>
+</div>
+
+<div class="datasource-bar" id="dsBar" style="display:none">
 
   <!-- Live GitHub fetch -->
   <div class="ds-group">
@@ -529,7 +535,8 @@ input[type="file"] { display: none; }
 <!-- ═══════════════════════════════════════════════════════════════════════
      TAB NAVIGATION
 ════════════════════════════════════════════════════════════════════════ -->
-<nav class="tab-nav">
+<div class="tab-nav-wrap" id="tabNavWrap">
+<nav class="tab-nav" id="tabNav">
   <button class="tab-btn active" data-tab="overview">
     Overview
   </button>
@@ -555,6 +562,7 @@ input[type="file"] { display: none; }
     NBM Guidance <span class="tab-count" id="cntNBM">5.0</span>
   </button>
 </nav>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
      PANELS
@@ -768,6 +776,9 @@ function setStatus(which, state, label) {
   if (state === 'err')     { dot.classList.add('err'); }
   if (state === 'loading') { dot.classList.add('warn', 'pulse'); }
   if (lbl) lbl.textContent = label;
+  // Mirror label into a tooltip so dot-only pills (narrow screens) stay informative
+  const pill = $(`pill${which}`);
+  if (pill && label) pill.title = label;
 }
 
 function fmtDate(isoStr) {
@@ -5870,6 +5881,115 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
+     PHASE 2 — Responsive header · tab overflow hints · data-source toggle
+════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Data-source toggle row ── */
+.ds-toggle-row {
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  padding: 6px 24px; display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+}
+.ds-toggle {
+  font-family: var(--cond); font-size: 12px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-dim); padding: 2px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.ds-toggle:hover { color: var(--amber); }
+.ds-toggle-arrow {
+  font-size: 9px; color: var(--amber-dim);
+  transition: transform 0.15s; display: inline-block;
+}
+.ds-toggle.open .ds-toggle-arrow { transform: rotate(90deg); }
+.ds-summary { font-family: var(--mono); font-size: 12px; color: var(--text-dimmer); }
+.ds-summary.ok   { color: var(--green); }
+.ds-summary.warn { color: var(--amber); }
+.ds-summary.err  { color: var(--red); }
+
+/* ── Tab overflow fade hints ── */
+.tab-nav-wrap { position: relative; }
+.tab-nav-wrap::before,
+.tab-nav-wrap::after {
+  content: ''; position: absolute; top: 0; bottom: 1px; width: 56px;
+  pointer-events: none; z-index: 5; opacity: 0; transition: opacity 0.2s;
+}
+.tab-nav-wrap::before { left: 0;  background: linear-gradient(90deg, var(--bg2) 20%, transparent); }
+.tab-nav-wrap::after  { right: 0; background: linear-gradient(270deg, var(--bg2) 20%, transparent); }
+.tab-nav-wrap.fade-left::before  { opacity: 1; }
+.tab-nav-wrap.fade-right::after  { opacity: 1; }
+
+/* ── Responsive header ── */
+@media (max-width: 1000px) {
+  .header-meta .coords { display: none; }
+}
+@media (max-width: 840px) {
+  .header { height: auto; min-height: 0; padding: 10px 16px; gap: 12px; }
+  .header-divider, .header-meta { display: none; }
+  .status-pill { padding: 3px 10px; font-size: 12px; }
+  .ds-toggle-row { padding: 6px 16px; }
+  .content { padding: 16px; }
+}
+@media (max-width: 540px) {
+  .header-logo .call { font-size: 18px; }
+  .header-status { gap: 6px; }
+  .status-pill { padding: 4px 7px; }
+  /* Dots only — setStatus mirrors the label into the pill's title attribute */
+  .status-pill span:not(.dot) { display: none; }
+  .datasource-bar { padding: 10px 16px; }
+}
+</style>
+
+<script>
+'use strict';
+
+// ── Data-source bar toggle ────────────────────────────────────────────────────
+(function () {
+  const bar = $('dsBar'), btn = $('dsToggle');
+
+  btn.addEventListener('click', () => {
+    const open = bar.style.display !== 'none';
+    bar.style.display = open ? 'none' : '';
+    btn.classList.toggle('open', !open);
+    btn.setAttribute('aria-expanded', String(!open));
+  });
+
+  // Helpers used by the auto-loader
+  window.dsSetSummary = function (text, cls) {
+    const el = $('dsSummary');
+    el.textContent = text;
+    el.className = 'ds-summary' + (cls ? ' ' + cls : '');
+  };
+  window.dsExpand = function () {
+    if (bar.style.display === 'none') btn.click();
+  };
+})();
+
+// ── Tab overflow fade hints ───────────────────────────────────────────────────
+(function () {
+  const wrap = $('tabNavWrap'), nav = $('tabNav');
+
+  function update() {
+    const max = nav.scrollWidth - nav.clientWidth;
+    wrap.classList.toggle('fade-left',  nav.scrollLeft > 4);
+    wrap.classList.toggle('fade-right', nav.scrollLeft < max - 4);
+  }
+
+  nav.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+
+  // Keep the tapped tab fully in view
+  nav.addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn');
+    if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  });
+
+  update();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
      AUTO-LOAD — fetch data from this repository on page open
      Runs after all other scripts so every ingest/render function exists.
 ════════════════════════════════════════════════════════════════════════ -->
@@ -5890,6 +6010,8 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
     // Opened from disk (file://) — relative fetches won't work; stay manual.
     if (!/^https?:$/.test(location.protocol)) {
       log('Opened as a local file \u2014 use the Local pickers or Fetch Live above', 'warn');
+      dsSetSummary('Local file mode \u2014 load data manually below', 'warn');
+      dsExpand();
       return;
     }
 
@@ -5914,9 +6036,17 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
       }
     }
 
-    if (okCount === files.length)  log('Auto-load complete \u2014 all datasets loaded', 'ok');
-    else if (okCount > 0)          log(`Auto-load partial \u2014 ${okCount}/${files.length} datasets`, 'warn');
-    else                           log('Auto-load failed \u2014 use the Data Source bar above', 'err');
+    if (okCount === files.length) {
+      log('Auto-load complete \u2014 all datasets loaded', 'ok');
+      dsSetSummary(`Live \u00b7 loaded ${new Date().toUTCString().slice(17,25)} UTC`, 'ok');
+    } else if (okCount > 0) {
+      log(`Auto-load partial \u2014 ${okCount}/${files.length} datasets`, 'warn');
+      dsSetSummary(`Partial load \u2014 ${okCount}/${files.length} datasets`, 'warn');
+    } else {
+      log('Auto-load failed \u2014 use the Data Source bar above', 'err');
+      dsSetSummary('Auto-load failed \u2014 set a source below', 'err');
+      dsExpand();
+    }
 
     // NBM bulletin auto-load (nbmDataUrl falls back to the relative path)
     try { fetchNBMBulletins(); } catch (e) { log(`NBM auto-load error: ${e.message}`, 'err'); }
