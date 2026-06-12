@@ -601,8 +601,8 @@ input[type="file"] { display: none; }
       <div id="fcstStrip">
         <div class="empty-state">
           <div class="empty-icon">◈</div>
-          <div class="empty-title">No Data Loaded</div>
-          <div class="empty-msg">Fetch from GitHub or load CSV files above</div>
+          <div class="empty-title">Loading Data</div>
+          <div class="empty-msg">Auto-loading from repository — or use the Data Source bar above</div>
         </div>
       </div>
     </div>
@@ -657,7 +657,7 @@ input[type="file"] { display: none; }
     <div class="log-box" id="activityLog">
       <div class="log-line">
         <span class="log-time">--:--:--</span>
-        <span class="log-msg">Ready. Fetch data from GitHub or load CSV files.</span>
+        <span class="log-msg">Ready.</span>
       </div>
     </div>
   </div>
@@ -668,8 +668,8 @@ input[type="file"] { display: none; }
 <section class="panel" id="panel-verification">
   <div class="empty-state">
     <div class="empty-icon">◫</div>
-    <div class="empty-title">Coming in Piece 2</div>
-    <div class="empty-msg">Forecast vs CLI verification table with lead-time filtering</div>
+    <div class="empty-title">Forecast vs CLI Verification</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -677,8 +677,8 @@ input[type="file"] { display: none; }
 <section class="panel" id="panel-leadtime">
   <div class="empty-state">
     <div class="empty-icon">◈</div>
-    <div class="empty-title">Coming in Piece 3</div>
-    <div class="empty-msg">Skill degradation curves and lead-time heatmap</div>
+    <div class="empty-title">Lead Time Analysis</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -686,8 +686,8 @@ input[type="file"] { display: none; }
 <section class="panel" id="panel-stats">
   <div class="empty-state">
     <div class="empty-icon">◉</div>
-    <div class="empty-title">Coming in Piece 4</div>
-    <div class="empty-msg">Bias analysis, RMSE, error distributions</div>
+    <div class="empty-title">Bias &amp; Statistics</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -695,8 +695,8 @@ input[type="file"] { display: none; }
 <section class="panel" id="panel-metar">
   <div class="empty-state">
     <div class="empty-icon">◐</div>
-    <div class="empty-title">Coming in Piece 5</div>
-    <div class="empty-msg">Hourly METAR drill-down with forecast overlay</div>
+    <div class="empty-title">Hourly Drill-Down</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -712,8 +712,8 @@ input[type="file"] { display: none; }
 <section class="panel" id="panel-events">
   <div class="empty-state">
     <div class="empty-icon">◑</div>
-    <div class="empty-title">Coming in Piece 6</div>
-    <div class="empty-msg">Automatic event flagging and anomaly detection</div>
+    <div class="empty-title">Event Tracker</div>
+    <div class="empty-msg">Loading…</div>
   </div>
 </section>
 
@@ -1047,7 +1047,6 @@ try {
   if (savedRepo)  $('ghRepo').value  = savedRepo;
 } catch(e) {}
 </script>
-</body>
 
 <style>
 /* ── NBM Tab styles ──────────────────────────────────────────────────────── */
@@ -1386,8 +1385,10 @@ const NBM = { product:'NBH', raw:{}, parsed:{}, fetchedAt:null, fileCycle:null }
 function nbmDataUrl() {
   const owner = document.getElementById('ghOwner')?.value?.trim() || '';
   const repo  = document.getElementById('ghRepo')?.value?.trim()  || '';
-  if (!owner || !repo) return null;
-  return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/nbm_klas.txt`;
+  if (owner && repo) return `https://raw.githubusercontent.com/${owner}/${repo}/main/data/nbm_klas.txt`;
+  // Served over http(s) (e.g. GitHub Pages): the bulletin lives in this same repo
+  if (/^https?:$/.test(location.protocol)) return 'data/nbm_klas.txt';
+  return null;
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -2145,8 +2146,6 @@ document.getElementById('nbmRawToggle').addEventListener('click', () => {
 });
 
 </script>
-
-</html>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
      PIECE 2 — FORECAST vs CLI VERIFICATION
@@ -5869,3 +5868,65 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
   applyQuickRange(localDateStr(firstOfLastMonth), localDateStr(lastOfLastMonth));
 });
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     AUTO-LOAD — fetch data from this repository on page open
+     Runs after all other scripts so every ingest/render function exists.
+════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+(function () {
+
+  // Prefill the GitHub owner/repo fields from the Pages URL if they're empty,
+  // so the manual "Fetch Live" button also works with zero typing.
+  const ghMatch = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  if (ghMatch) {
+    const seg = location.pathname.split('/').filter(Boolean)[0] || '';
+    if ($('ghOwner') && !$('ghOwner').value) $('ghOwner').value = ghMatch[1];
+    if ($('ghRepo')  && !$('ghRepo').value && seg) $('ghRepo').value = seg;
+  }
+
+  async function autoLoad() {
+    // Opened from disk (file://) — relative fetches won't work; stay manual.
+    if (!/^https?:$/.test(location.protocol)) {
+      log('Opened as a local file \u2014 use the Local pickers or Fetch Live above', 'warn');
+      return;
+    }
+
+    const bust  = `?t=${Date.now()}`;   // bypass CDN caching for fresh data
+    const files = [
+      { url: `data/forecasts.csv${bust}`,          ingest: ingestForecasts, name: 'forecasts' },
+      { url: `data/observations_cli.csv${bust}`,   ingest: ingestCLI,       name: 'CLI' },
+      { url: `data/observations_metar.csv${bust}`, ingest: ingestMETAR,     name: 'METAR' },
+    ];
+
+    log('Auto-loading data from this repository\u2026');
+    let okCount = 0;
+
+    for (const f of files) {
+      try {
+        const resp = await fetch(f.url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        f.ingest(parseCSV(await resp.text()));
+        okCount++;
+      } catch (e) {
+        log(`Auto-load failed for ${f.name}: ${e.message}`, 'err');
+      }
+    }
+
+    if (okCount === files.length)  log('Auto-load complete \u2014 all datasets loaded', 'ok');
+    else if (okCount > 0)          log(`Auto-load partial \u2014 ${okCount}/${files.length} datasets`, 'warn');
+    else                           log('Auto-load failed \u2014 use the Data Source bar above', 'err');
+
+    // NBM bulletin auto-load (nbmDataUrl falls back to the relative path)
+    try { fetchNBMBulletins(); } catch (e) { log(`NBM auto-load error: ${e.message}`, 'err'); }
+  }
+
+  if (document.readyState === 'complete') autoLoad();
+  else window.addEventListener('load', autoLoad);
+
+})();
+</script>
+
+</body>
+</html>
