@@ -1630,19 +1630,22 @@ function parseNBMSection(text, prodKey) {
     return isNaN(h) ? '' : String(((h + ptOffset()) % 24 + 24) % 24).padStart(2, '0');
   });
 
-  // Find true data start: scan data lines for the leftmost column that
-  // contains a digit or '-' (start of a value).
-  let trueDataStart = labelWidth;
-  for (let i = utcLineIdx + 1; i < Math.min(utcLineIdx + 15, lines.length); i++) {
-    const l = lines[i];
-    if (!l.trim()) continue;
-    if (/^\s*(DT\s*\/|FHR\s|SUN\s|MON\s|TUE\s|WED\s|THU\s|FRI\s|SAT\s|UTC\b|KLAS\b|NBM)/i.test(l)) continue;
-    // Find where the label ends and data begins on this row
-    const m = l.match(/^(\s*\S+\s*)/);
-    if (m) trueDataStart = Math.min(trueDataStart, m[1].length);
-  }
-
+  // Find the true data start column. The UTC header is authoritative: hour
+  // tokens are right-justified in the same 3-char grid as the data values,
+  // so the END position of the first hour token pins the column grid:
+  //   dataStart = (end of first UTC token) - COL_W
+  // The previous approach (regex-scanning the first rows for the leftmost
+  // value) was off by one whenever the scanned rows' first value was only
+  // 2 digits wide — the label regex swallowed the value's pad space. That
+  // bug was invisible with all-2-digit data but garbled packed rows and
+  // 3-digit temperatures (e.g. "99101102" parsed as 991, 011, ...).
   const COL_W = 3;  // NBM text bulletins use 3-char fixed-width value columns
+  let trueDataStart = labelWidth;
+  const firstTok = /\S+/.exec(utcLine.slice(labelWidth));
+  if (firstTok) {
+    const endIdx = labelWidth + firstTok.index + firstTok[0].length;
+    trueDataStart = Math.max(0, endIdx - COL_W);
+  }
 
   const dataStartIdx = utcLineIdx + 1;
   const rows = [];
@@ -1728,7 +1731,7 @@ const NBM_ELEMENTS = {
   IFC:   { name:'IFR Cloud',        cls:'nbm-val-pop',  unit:'%',    desc:'IFR conditions from cloud probability' },
   LIC:   { name:'LIFR Cloud',       cls:'nbm-val-pop',  unit:'%',    desc:'LIFR from cloud probability' },
   LCB:   { name:'Lowest Cloud Base',cls:'',             unit:'×100ft',desc:'Lowest cloud base in hundreds of feet; -88 = none/clear' },
-  VIS:   { name:'Visibility',       cls:'',             unit:'×0.1SM',desc:'Visibility in tenths of statute miles (100 = 10SM+)' },
+  VIS:   { name:'Visibility',       cls:'',             unit:'SM',   desc:'Visibility in statute miles (converted from bulletin tenths; 10+ = 10SM or greater)' },
   MVV:   { name:'Mtn Vis',          cls:'nbm-val-pop',  unit:'%',    desc:'Mountain obscuration from visibility' },
   IFV:   { name:'IFR Vis',          cls:'nbm-val-pop',  unit:'%',    desc:'IFR conditions from visibility probability' },
   LIV:   { name:'LIFR Vis',         cls:'nbm-val-pop',  unit:'%',    desc:'LIFR from visibility probability' },
@@ -1898,6 +1901,11 @@ function renderNBMTable(parsed) {
       // Special display for unlimited ceiling / clear sky
       if ((row.label === 'CIG' || row.label === 'LCB') && v === -88)
         return `<td style="color:var(--text-dimmer);font-size:11px;">CLR</td>`;
+      // Visibility: bulletin reports tenths of statute miles (100 = 10SM+)
+      if (row.label === 'VIS' && typeof v === 'number') {
+        const vis = v >= 100 ? '10+' : String(v / 10).replace(/\.0$/, '');
+        return `<td class="${meta.cls}">${vis}</td>`;
+      }
       const display = typeof v === 'number' && !Number.isInteger(v)
         ? v.toFixed(2) : v;
       return `<td class="${meta.cls}">${display}</td>`;
