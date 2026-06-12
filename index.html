@@ -223,7 +223,7 @@ input[type="file"] { display: none; }
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
 }
 .card-badge {
-  font-family: var(--mono); font-size: 10px;
+  font-family: var(--mono); font-size: 11px;
   background: var(--amber-glow); color: var(--amber);
   border: 1px solid var(--amber-dim); border-radius: 10px;
   padding: 1px 8px;
@@ -321,7 +321,7 @@ input[type="file"] { display: none; }
 .data-table tr:hover td { background: var(--surface2); }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table .lead-badge {
-  display: inline-block; font-size: 10px;
+  display: inline-block; font-size: 11px;
   padding: 1px 6px; border-radius: 3px;
   font-family: var(--mono);
 }
@@ -434,7 +434,7 @@ input[type="file"] { display: none; }
   color: var(--text); text-transform: uppercase; margin-bottom: 4px;
 }
 .fcst-day .fd-lead {
-  font-family: var(--mono); font-size: 10px;
+  font-family: var(--mono); font-size: 11px;
   margin-bottom: 6px;
 }
 .fcst-day .fd-hi { font-family: var(--mono); font-size: 20px; color: var(--amber); }
@@ -776,9 +776,13 @@ function setStatus(which, state, label) {
   if (state === 'err')     { dot.classList.add('err'); }
   if (state === 'loading') { dot.classList.add('warn', 'pulse'); }
   if (lbl) lbl.textContent = label;
-  // Mirror label into a tooltip so dot-only pills (narrow screens) stay informative
+  // Mirror label into tooltip + aria-label so dot-only pills (narrow screens)
+  // stay informative for pointer and assistive-tech users alike
   const pill = $(`pill${which}`);
-  if (pill && label) pill.title = label;
+  if (pill && label) {
+    pill.title = label;
+    pill.setAttribute('aria-label', label);
+  }
 }
 
 function fmtDate(isoStr) {
@@ -911,19 +915,19 @@ function updateCoverage() {
   const html = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--mono); font-size:12px;">
       <div>
-        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Date Range</div>
+        <div style="color:var(--text-dimmer);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Date Range</div>
         <div style="color:var(--text);font-size:13px;">${sorted[0]} → ${sorted[sorted.length-1]}</div>
       </div>
       <div>
-        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Verifiable Days</div>
+        <div style="color:var(--text-dimmer);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Verifiable Days</div>
         <div style="color:var(--green);">${overlap.length} of ${cliDates.size} CLI days have forecasts</div>
       </div>
       <div>
-        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Forecast Dates</div>
+        <div style="color:var(--text-dimmer);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">Forecast Dates</div>
         <div style="color:var(--amber);">${fcstDates.size} unique dates</div>
       </div>
       <div>
-        <div style="color:var(--text-dimmer);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">METAR Days</div>
+        <div style="color:var(--text-dimmer);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;font-family:var(--cond);">METAR Days</div>
         <div style="color:var(--cyan);">${metarDates.size} days with hourly obs</div>
       </div>
     </div>
@@ -1113,7 +1117,7 @@ try {
 }
 .nbm-meta-item { display: flex; flex-direction: column; gap: 2px; }
 .nbm-meta-label {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer);
 }
 .nbm-meta-val { color: var(--amber); }
@@ -1137,7 +1141,7 @@ try {
 .nbm-table th {
   background: var(--surface2);
   padding: 6px 10px;
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-dim);
   border-bottom: 2px solid var(--border2);
@@ -1183,7 +1187,7 @@ try {
 .nbm-val-sky  { color: #9b9bcc; }
 .nbm-val-qpf  { color: var(--green); }
 .nbm-val-wbgt { color: #ff9f1c; }
-.nbm-val-miss { color: var(--text-dimmer); font-size: 10px; }
+.nbm-val-miss { color: var(--text-dimmer); font-size: 11px; }
 .nbm-val-na   { color: var(--border2); }
 
 /* Product description card */
@@ -1197,7 +1201,7 @@ try {
 }
 .nbm-prod-desc .npd-item { display: flex; flex-direction: column; gap: 3px; }
 .nbm-prod-desc .npd-label {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dimmer);
 }
 .nbm-prod-desc .npd-val {
@@ -1234,7 +1238,7 @@ try {
 /* NBM v5 badge */
 .nbm-version-badge {
   display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--mono); font-size: 10px;
+  font-family: var(--mono); font-size: 11px;
   background: rgba(61,220,132,0.12); color: var(--green);
   border: 1px solid var(--green-dim); border-radius: 10px;
   padding: 2px 9px;
@@ -1346,7 +1350,7 @@ document.getElementById('panel-nbm').innerHTML = `
     <button class="btn btn-amber" id="btnNBMFetch">Load Bulletins</button>
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
       <span class="nbm-version-badge">NBM 5.0</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--text-dimmer);">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-dimmer);">
         Reads data/nbm_klas.txt &middot; collected by GitHub Actions
       </span>
       <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="nbmFetchTime"></span>
@@ -1893,7 +1897,7 @@ function renderNBMTable(parsed) {
         return `<td><span class="nbm-val-na">&middot;</span></td>`;
       // Special display for unlimited ceiling / clear sky
       if ((row.label === 'CIG' || row.label === 'LCB') && v === -88)
-        return `<td style="color:var(--text-dimmer);font-size:10px;">CLR</td>`;
+        return `<td style="color:var(--text-dimmer);font-size:11px;">CLR</td>`;
       const display = typeof v === 'number' && !Number.isInteger(v)
         ? v.toFixed(2) : v;
       return `<td class="${meta.cls}">${display}</td>`;
@@ -1916,7 +1920,7 @@ function renderNBMTable(parsed) {
             <th class="row-label">Element</th>${utcCells}
           </tr>
           <tr>
-            <th class="row-label" style="color:var(--cyan);font-size:10px;">Pacific Time</th>${ptCells}
+            <th class="row-label" style="color:var(--cyan);font-size:11px;">Pacific Time</th>${ptCells}
           </tr>
         </thead>
         <tbody>${dataRows}</tbody>
@@ -2124,7 +2128,7 @@ function renderNBMKey(prodKey) {
       continue;
     }
     const badge = e.isNew ? '<span class="nbm-key-new">new 5.0</span>' : '';
-    const std   = e.std   ? `<span style="color:var(--text-dimmer);font-size:10px;"> ±${e.std}</span>` : '';
+    const std   = e.std   ? `<span style="color:var(--text-dimmer);font-size:11px;"> ±${e.std}</span>` : '';
     h += `<div class="nbm-key-row">
       <span class="nbm-key-code">${e.code}${std}</span>
       <span class="nbm-key-unit">${e.unit}</span>
@@ -2261,7 +2265,7 @@ document.getElementById('nbmRawToggle').addEventListener('click', () => {
 .err-cell  { font-weight: 600; }
 
 /* Sort arrows */
-.sort-arrow { opacity: 0.3; font-size: 10px; margin-left: 3px; }
+.sort-arrow { opacity: 0.3; font-size: 11px; margin-left: 3px; }
 .sorted .sort-arrow { opacity: 1; }
 
 /* Pagination */
@@ -2797,7 +2801,7 @@ window.ingestCLI = function(rows) {
   width: 100%; border-collapse: collapse; font-size: 12px;
 }
 .heatmap th {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-dim); padding: 8px 12px;
   border-bottom: 2px solid var(--border2);
@@ -3303,7 +3307,7 @@ window.applyFilters = function() {
 /* Variable breakdown table */
 .breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .breakdown-table th {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-dim); padding: 9px 12px;
   border-bottom: 2px solid var(--border2);
@@ -3654,7 +3658,7 @@ function renderBreakdown(pairs) {
             <div class="bias-center-line"></div>
             <div class="bias-bar-fill" style="${barStyle}"></div>
           </div>
-          <span style="font-size:10px;color:var(--text-dimmer);min-width:30px;">
+          <span style="font-size:11px;color:var(--text-dimmer);min-width:30px;">
             ${isWarm ? 'warm' : Math.abs(bias) < 0.5 ? 'cal' : 'cool'}
           </span>
         </div>
@@ -3870,7 +3874,7 @@ window.applyFilters = function() {
 /* METAR obs table */
 .metar-obs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .metar-obs-table th {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-dim); padding: 6px 8px;
   border-bottom: 1px solid var(--border2); background: var(--surface);
@@ -3886,8 +3890,8 @@ window.applyFilters = function() {
 .metar-obs-table td:first-child { text-align: left; }
 .metar-obs-table tr:hover td { background: var(--surface2); }
 .metar-obs-table tr.special td { color: var(--amber); }
-.metar-obs-table .fc-cell { color: var(--purple); font-size: 10px; }
-.metar-obs-table .wx-cell { color: var(--cyan); font-size: 10px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metar-obs-table .fc-cell { color: var(--purple); font-size: 11px; }
+.metar-obs-table .wx-cell { color: var(--cyan); font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Forecast sidebar */
 .fcst-sidebar .fs-header {
@@ -4462,7 +4466,7 @@ function renderDrillFcstSidebar(dateStr) {
           <div class="fsi-val">${r.sky_cover_pct !== '' ? r.sky_cover_pct+'%' : '—'}</div>
         </div>
       </div>
-      <div style="font-family:var(--sans);font-size:10px;color:var(--text-dimmer);margin-top:6px;">${r.day_short_forecast || ''}</div>
+      <div style="font-family:var(--sans);font-size:11px;color:var(--text-dimmer);margin-top:6px;">${r.day_short_forecast || ''}</div>
     </div>`;
   }).join('');
 }
@@ -4588,7 +4592,7 @@ window.ingestMETAR = function(rows) {
 
 /* Drill link */
 .evt-drill-link {
-  font-family: var(--cond); font-size: 10px; letter-spacing: 1px;
+  font-family: var(--cond); font-size: 11px; letter-spacing: 1px;
   text-transform: uppercase; color: var(--amber-dim);
   margin-left: auto; align-self: center;
   transition: color 0.15s;
@@ -5155,7 +5159,7 @@ window.applyFilters = function() {
   padding: 12px 14px;
 }
 .cli-metric .cm-label {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--text-dim); margin-bottom: 4px;
 }
@@ -5200,7 +5204,7 @@ window.applyFilters = function() {
 /* Precip table inside section */
 .cli-precip-table { width: 100%; border-collapse: collapse; }
 .cli-precip-table th {
-  font-family: var(--cond); font-size: 10px; font-weight: 600;
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
   padding: 8px 14px; text-align: right; background: var(--bg3);
   border-bottom: 1px solid var(--border);
@@ -5221,7 +5225,7 @@ window.applyFilters = function() {
 
 /* Source badge */
 .cli-source-badge {
-  font-family: var(--mono); font-size: 10px;
+  font-family: var(--mono); font-size: 11px;
   padding: 2px 8px; border-radius: 10px;
   background: var(--surface2); color: var(--text-dimmer);
   border: 1px solid var(--border2);
@@ -5594,7 +5598,7 @@ function loadCliRecord(dateStr) {
     <!-- Climate normals reference -->
     <div class="cli-section">
       <div class="cli-section-header"><span class="csh-icon">📊</span> Climate Context &nbsp;
-        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dimmer);font-weight:400;">1991–2020 normals</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dimmer);font-weight:400;">1991–2020 normals</span>
       </div>
       <div class="cli-metric-grid">
         <div class="cli-metric">
@@ -5935,8 +5939,13 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
   .header-logo .call { font-size: 18px; }
   .header-status { gap: 6px; }
   .status-pill { padding: 4px 7px; }
-  /* Dots only — setStatus mirrors the label into the pill's title attribute */
-  .status-pill span:not(.dot) { display: none; }
+  /* Dots only — label is visually hidden but stays in the accessibility tree;
+     setStatus also mirrors it into the pill's title attribute */
+  .status-pill { position: relative; }
+  .status-pill span:not(.dot) {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
   .datasource-bar { padding: 10px 16px; }
 }
 </style>
@@ -5987,6 +5996,91 @@ document.getElementById('qLastMonth').addEventListener('click', () => {
 
   update();
 })();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PHASE 3 — Accessibility: focus outlines · ARIA tabs · reduced motion
+════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Keyboard focus indicators ── */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.tab-btn:focus-visible,
+.nbm-prod-btn:focus-visible {
+  outline-offset: -3px;   /* keep the ring inside the strip */
+}
+
+/* ── Respect reduced-motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+
+<script>
+'use strict';
+
+// ── ARIA tab semantics + arrow-key navigation ────────────────────────────────
+// Retrofits role=tablist/tab/tabpanel onto the existing markup and adds
+// roving tabindex with Left/Right/Home/End keys (selection follows focus).
+function ariaTabs(navEl, btnSelector, getPanelId) {
+  if (!navEl) return;
+  const btns = [...navEl.querySelectorAll(btnSelector)];
+  if (!btns.length) return;
+
+  navEl.setAttribute('role', 'tablist');
+
+  btns.forEach((b, i) => {
+    b.setAttribute('role', 'tab');
+    if (!b.id) b.id = `${navEl.id || 'tabs'}-tab-${i}`;
+    const pid = getPanelId(b);
+    const panel = pid && document.getElementById(pid);
+    if (panel) {
+      b.setAttribute('aria-controls', pid);
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', b.id);
+    }
+  });
+
+  function sync() {
+    btns.forEach(b => {
+      const active = b.classList.contains('active');
+      b.setAttribute('aria-selected', String(active));
+      b.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  // Existing click handlers (on the buttons) toggle .active first;
+  // this bubble-phase listener then syncs the ARIA state.
+  navEl.addEventListener('click', sync);
+
+  navEl.addEventListener('keydown', e => {
+    const idx = btns.indexOf(document.activeElement);
+    if (idx < 0) return;
+    let next = null;
+    if      (e.key === 'ArrowRight') next = (idx + 1) % btns.length;
+    else if (e.key === 'ArrowLeft')  next = (idx - 1 + btns.length) % btns.length;
+    else if (e.key === 'Home')       next = 0;
+    else if (e.key === 'End')        next = btns.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    btns[next].focus();
+    btns[next].click();
+    sync();
+  });
+
+  sync();
+}
+
+ariaTabs($('tabNav'),        '.tab-btn',      b => `panel-${b.dataset.tab}`);
+ariaTabs($('nbmProductNav'), '.nbm-prod-btn', () => 'nbmTableArea');
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
