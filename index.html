@@ -2902,15 +2902,6 @@ document.getElementById('panel-leadtime').innerHTML = `
     </div>
   </div>
 
-  <!-- Sample size chart -->
-  <div class="chart-card" style="margin-bottom:16px;">
-    <div class="cc-header">
-      <span class="cc-title">Sample Size by Lead Day</span>
-    </div>
-    <div class="cc-sub">Number of verified pairs at each lead time — low counts mean less reliable statistics</div>
-    <div class="chart-wrap"><canvas id="ltSampleChart"></canvas></div>
-  </div>
-
   <!-- Heatmap -->
   <div class="chart-card">
     <div class="cc-header">
@@ -2954,7 +2945,6 @@ const LT_VARS = {
 // ── Chart instances ───────────────────────────────────────────────────────
 let ltMAEChart    = null;
 let ltBiasChart   = null;
-let ltSampleChart = null;
 
 // ── Active variables ──────────────────────────────────────────────────────
 let ltActiveVars = new Set(['hi','lo','wind','sky']);
@@ -3149,44 +3139,6 @@ function runLeadTimeAnalysis() {
   });
 
   // ── Sample size chart ──────────────────────────────────────────────────
-  // Use hi temp as representative sample size
-  const sampleData = leads.map(ld => {
-    const pairsAtLead = groups[ld] || [];
-    return pairsAtLead.filter(p => p.errHi !== null).length;
-  });
-
-  if (ltSampleChart) ltSampleChart.destroy();
-  ltSampleChart = new Chart(document.getElementById('ltSampleChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Pairs (Hi Temp)',
-        data: sampleData,
-        backgroundColor: leads.map(l => `rgba(232,160,32,${0.15 + l * 0.07})`),
-        borderColor:     leads.map(l => `rgba(232,160,32,${0.4  + l * 0.06})`),
-        borderWidth: 1,
-        borderRadius: 3,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} pairs` } }
-      },
-      scales: {
-        x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { color: CHART_DEFAULTS.tick } },
-        y: {
-          grid: { color: CHART_DEFAULTS.grid },
-          ticks: { color: CHART_DEFAULTS.tick, precision: 0 },
-          title: { display: true, text: 'Verified Pairs', color: CHART_DEFAULTS.tick },
-          beginAtZero: true,
-        }
-      }
-    }
-  });
-
   // ── Heatmap ────────────────────────────────────────────────────────────
   renderHeatmap(groups, leads);
 }
