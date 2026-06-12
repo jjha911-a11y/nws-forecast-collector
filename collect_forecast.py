@@ -69,7 +69,11 @@ CSV_COLUMNS = [
 
 # ── Unit conversion helpers ────────────────────────────────────────────────────
 def kph_to_mph(kph):
-    return round(kph * 0.621371, 1) if kph is not None else None
+    # Used only for wind speed/gust. The NDFD grid carries whole knots; the
+    # API serves km/h, so converting to mph with a decimal place creates
+    # false precision (e.g. 11 kt -> 20.372 km/h -> "12.7 mph"). CLI observed
+    # max wind is integer mph, so store whole mph for clean verification.
+    return round(kph * 0.621371) if kph is not None else None
 
 def mm_to_in(mm):
     return round(mm * 0.0393701, 3) if mm is not None else None
