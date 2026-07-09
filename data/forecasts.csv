@@ -1925,3 +1925,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-07-09T07:41:54+00:00,2026-07-09T10:00:14Z,2026-07-13,4,104,86,103.0,89.0,10,16,SSW,52.1,22,38,0.0,28,58,,Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light|chance:rain_showers:light|chance:thunderstorms:
 2026-07-09T07:41:54+00:00,2026-07-09T10:00:14Z,2026-07-14,5,107,87,106.0,89.0,7,13,SE,56.8,27,20,0.0,20,27,,Slight Chance Showers And Thunderstorms,Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light
 2026-07-09T07:41:54+00:00,2026-07-09T10:00:14Z,2026-07-15,6,109,,108.0,90.0,7,15,SSE,55.2,23,16,0.0,16,23,,Slight Chance Showers And Thunderstorms,,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-09,0,111,82,101.0,80.0,15,26,SSW,26.8,10,0,0.0,0,1,10.0,Sunny,Clear,
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-10,1,111,83,101.0,80.0,16,24,S,26.7,10,0,0.0,0,2,10.0,Sunny,Clear,
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-11,2,111,86,105.0,80.0,10,20,ESE,34.4,12,0,0.0,0,2,10.0,Sunny,Mostly Clear,
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-12,3,110,88,105.0,85.0,10,17,SSE,41.5,16,15,0.0,8,21,,Sunny,Partly Cloudy then Slight Chance Rain Showers,
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-13,4,107,87,104.0,90.0,10,16,S,50.5,19,26,0.01,26,42,,Chance Showers And Thunderstorms,Partly Cloudy,slight_chance:rain_showers:light|chance:thunderstorms:|chance:rain_showers:light
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-14,5,107,88,106.0,90.0,8,14,SE,54.2,23,15,0.0,12,35,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Partly Cloudy,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-09T18:32:58+00:00,2026-07-09T20:03:38Z,2026-07-15,6,108,88,107.0,90.0,8,15,SE,54.9,23,15,0.01,15,24,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms,slight_chance:thunderstorms:|slight_chance:rain_showers:light
