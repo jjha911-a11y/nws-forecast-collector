@@ -2114,3 +2114,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-07-19T19:57:23+00:00,2026-07-20T03:59:37Z,2026-07-24,4,107,88,106.0,91.0,8,16,SSE,54.9,24,25,0.0,25,36,,Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Mostly Clear,chance:thunderstorms:|chance:rain_showers:light
 2026-07-19T19:57:23+00:00,2026-07-20T03:59:37Z,2026-07-25,5,109,88,107.0,90.0,8,16,S,54.8,23,14,0.0,14,24,,Slight Chance Showers And Thunderstorms,Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light
 2026-07-19T19:57:23+00:00,2026-07-20T03:59:37Z,2026-07-26,6,111,,107.0,89.0,8,16,S,51.9,20,8,0.0,8,17,,Sunny,,
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-20,0,106,88,104.0,87.0,9,16,SSW,54.7,25,13,0.0,13,37,10.0,Slight Chance Showers And Thunderstorms,Partly Cloudy,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-21,1,106,89,104.0,87.0,9,14,SSE,54.3,25,7,0.0,7,39,10.0,Mostly Sunny,Partly Cloudy,
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-22,2,107,90,105.0,88.0,8,13,ESE,54.5,25,6,0.0,5,31,,Sunny,Mostly Clear,
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-23,3,109,91,106.0,89.0,7,14,SE,53.6,22,10,0.0,10,18,,Slight Chance Showers And Thunderstorms,Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-24,4,107,90,106.0,92.0,8,17,S,54.6,21,23,0.0,23,29,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-25,5,109,90,108.0,91.0,8,17,S,54.9,23,12,0.0,12,18,,Slight Chance Showers And Thunderstorms,Mostly Clear,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-07-20T07:08:24+00:00,2026-07-20T09:31:31Z,2026-07-26,6,111,,108.0,90.0,7,16,S,51.3,19,4,0.0,4,14,,Sunny,,
