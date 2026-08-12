@@ -2632,3 +2632,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-08-12T08:34:09+00:00,2026-08-12T13:50:09Z,2026-08-16,4,102,83,98.0,80.0,7,17,SE,49.6,26,6,0.0,6,22,,Sunny,Partly Cloudy,
 2026-08-12T08:34:09+00:00,2026-08-12T13:50:09Z,2026-08-17,5,105,84,100.0,82.0,9,20,SSE,45.1,20,3,0.0,0,25,,Sunny,Partly Cloudy,
 2026-08-12T08:34:09+00:00,2026-08-12T13:50:09Z,2026-08-18,6,105,83,99.0,82.0,13,23,S,40.4,15,5,0.0,5,29,,Sunny,Mostly Clear,
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-12,0,101,82,99.0,84.0,10,20,S,58.0,33,44,0.0,40,47,10.0,Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms,slight_chance:thunderstorms:|slight_chance:rain_showers:light|chance:thunderstorms:|chance:rain_showers:light
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-13,1,98,80,95.0,83.0,13,23,S,58.6,36,21,0.01,18,59,10.0,Mostly Cloudy then Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-14,2,94,76,92.0,81.0,12,22,SSE,55.0,33,39,0.03,26,72,,Chance Showers And Thunderstorms,Chance Showers And Thunderstorms then Mostly Clear,slight_chance:rain_showers:light|chance:rain_showers:light|slight_chance:thunderstorms:|chance:thunderstorms:
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-15,3,97,79,93.0,77.0,9,18,ESE,58.3,40,34,0.01,20,23,,Slight Chance Showers And Thunderstorms,Partly Cloudy,chance:rain_showers:light|slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-16,4,100,81,97.0,80.0,6,15,E,52.5,29,6,0.0,6,29,,Mostly Sunny,Partly Cloudy,
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-17,5,104,83,99.0,81.0,7,17,SSE,47.1,22,3,0.0,1,28,,Mostly Sunny,Partly Cloudy,
+2026-08-12T18:33:36+00:00,2026-08-12T19:20:09Z,2026-08-18,6,105,84,99.0,81.0,13,22,S,41.0,16,4,0.0,3,24,,Sunny,Mostly Clear,
