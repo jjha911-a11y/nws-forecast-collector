@@ -3066,3 +3066,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-09-04T19:17:04+00:00,2026-09-04T20:45:43Z,2026-09-08,4,97,79,92.0,75.0,8,18,SW,45.2,26,11,0.0,7,23,,Mostly Sunny,Partly Cloudy,
 2026-09-04T19:17:04+00:00,2026-09-04T20:45:43Z,2026-09-09,5,100,81,96.0,79.0,7,16,S,48.5,25,14,0.0,11,34,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Partly Cloudy,slight_chance:thunderstorms:|slight_chance:rain_showers:light
 2026-09-04T19:17:04+00:00,2026-09-04T20:45:43Z,2026-09-10,6,98,80,95.0,81.0,8,17,SSW,53.1,29,20,0.0,20,42,,Slight Chance Showers And Thunderstorms,Partly Cloudy,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-05,0,98,78,91.0,74.0,20,28,SSW,35.0,18,20,0.0,1,4,10.0,Sunny,Partly Cloudy then Slight Chance Light Rain,
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-06,1,85,72,92.0,78.0,18,26,SW,48.5,31,55,0.12,16,52,10.0,Showers And Thunderstorms Likely,Mostly Cloudy,slight_chance:rain:light|chance:rain:light|likely:rain_showers:light|slight_chance:thunderstorms:|chance:rain_showers:light|slight_chance:rain_showers:light
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-07,2,93,74,88.0,73.0,8,20,WSW,56.3,48,9,0.0,7,39,,Sunny,Mostly Clear,
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-08,3,96,79,91.0,74.0,9,18,ESE,46.6,29,7,0.0,4,20,,Sunny,Partly Cloudy,
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-09,4,100,81,96.0,79.0,5,14,E,47.0,25,9,0.0,6,26,,Sunny,Partly Cloudy,
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-10,5,101,81,97.0,81.0,7,15,SE,49.8,26,17,0.01,17,29,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Partly Cloudy,slight_chance:thunderstorms:|slight_chance:rain_showers:light
+2026-09-05T08:57:48+00:00,2026-09-05T10:29:54Z,2026-09-11,6,101,,96.0,81.0,13,23,S,48.7,25,15,0.02,15,27,,Slight Chance Showers And Thunderstorms,,slight_chance:thunderstorms:|slight_chance:rain_showers:light
