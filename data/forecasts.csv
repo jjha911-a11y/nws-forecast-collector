@@ -3465,3 +3465,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-09-27T11:52:59+00:00,2026-09-27T17:00:36Z,2026-10-01,4,93,71,89.0,70.0,5,12,NE,37.0,22,0,0.0,0,1,,Sunny,Mostly Clear,
 2026-09-27T11:52:59+00:00,2026-09-27T17:00:36Z,2026-10-02,5,94,72,89.0,71.0,6,14,NE,39.9,24,0,0.0,0,8,,Sunny,Mostly Clear,
 2026-09-27T11:52:59+00:00,2026-09-27T17:00:36Z,2026-10-03,6,94,71,89.0,72.0,5,13,NNE,40.2,24,1,0.0,0,5,,Sunny,Clear,
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-09-27,0,92,72,86.0,75.0,15,25,S,40.9,22,17,0.0,2,62,10.0,Partly Sunny then Slight Chance Rain Showers,Slight Chance Rain Showers then Mostly Cloudy,
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-09-28,1,84,66,85.0,72.0,13,24,SSW,48.9,37,52,0.05,32,51,10.0,Slight Chance Showers And Thunderstorms then Chance Showers And Thunderstorms,Chance Showers And Thunderstorms,slight_chance:rain_showers:light|slight_chance:thunderstorms:|chance:rain_showers:light|chance:thunderstorms:
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-09-29,2,84,68,81.0,66.0,14,24,N,53.6,52,52,0.15,27,65,,Chance Showers And Thunderstorms,Mostly Clear,chance:rain_showers:light|slight_chance:thunderstorms:
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-09-30,3,89,69,85.0,68.0,8,17,NNE,45.0,34,8,0.0,8,9,,Sunny,Clear,
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-10-01,4,92,71,87.0,70.0,3,10,NNE,40.9,25,0,0.0,0,0,,Sunny,Clear,
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-10-02,5,93,72,89.0,72.0,5,12,NE,44.0,28,0,0.0,0,2,,Sunny,Mostly Clear,
+2026-09-27T18:36:05+00:00,2026-09-27T21:21:14Z,2026-10-03,6,94,73,90.0,72.0,5,12,NNE,46.2,30,0,0.0,0,4,,Sunny,Clear,
