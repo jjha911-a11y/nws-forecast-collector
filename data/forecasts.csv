@@ -3633,3 +3633,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-10-08T10:47:55+00:00,2026-10-08T13:20:35Z,2026-10-12,4,75,57,75.0,64.0,15,26,SSE,54.0,59,64,0.2,16,62,,Chance Showers And Thunderstorms,Chance Showers And Thunderstorms,likely:rain_showers:light|slight_chance:thunderstorms:|chance:rain_showers:light
 2026-10-08T10:47:55+00:00,2026-10-08T13:20:35Z,2026-10-13,5,73,55,73.0,59.0,12,21,SE,48.7,56,33,0.0,10,51,,Chance Rain Showers,Chance Rain Showers,slight_chance:thunderstorms:|slight_chance:rain_showers:light|chance:rain_showers:light
 2026-10-08T10:47:55+00:00,2026-10-08T13:20:35Z,2026-10-14,6,75,56,74.0,57.0,5,12,S,46.9,52,27,0.02,3,33,,Slight Chance Rain Showers then Sunny,Mostly Clear,slight_chance:rain_showers:light
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-08,0,98,75,92.0,80.0,5,12,E,37.4,16,0,0.0,0,2,10.0,Sunny,Clear,
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-09,1,97,74,93.0,75.0,9,18,SSE,36.8,18,1,0.0,0,10,10.0,Sunny,Mostly Clear,
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-10,2,89,67,90.0,74.0,18,31,SSW,43.0,26,82,0.0,3,37,,Partly Sunny then Slight Chance Rain Showers,Slight Chance Showers And Thunderstorms then Showers And Thunderstorms,
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-11,3,77,61,83.0,68.0,24,38,S,55.4,56,89,0.73,31,83,,Showers And Thunderstorms,Chance Rain Showers,slight_chance:rain_showers:light|slight_chance:thunderstorms:|likely:rain_showers:light|definite:rain_showers:moderate|chance:thunderstorms:
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-12,4,74,56,74.0,63.0,18,24,SSE,54.8,63,53,0.19,12,58,,Chance Showers And Thunderstorms,Chance Showers And Thunderstorms,chance:rain_showers:light|slight_chance:thunderstorms:
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-13,5,72,54,72.0,59.0,13,17,SSW,49.1,57,31,0.02,10,46,,Slight Chance Rain Showers,Mostly Clear,chance:rain_showers:light|slight_chance:rain_showers:light
+2026-10-08T22:42:47+00:00,2026-10-08T23:21:04Z,2026-10-14,6,75,57,74.0,56.0,5,7,S,46.2,52,12,0.0,8,18,,Sunny,Mostly Clear,
