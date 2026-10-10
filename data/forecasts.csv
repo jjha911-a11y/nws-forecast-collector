@@ -3661,3 +3661,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-10-10T03:18:03+00:00,2026-10-10T05:45:05Z,2026-10-14,4,74,56,73.0,56.0,6,14,ENE,46.6,54,21,0.03,3,25,,Sunny,Clear,slight_chance:rain_showers:light
 2026-10-10T03:18:03+00:00,2026-10-10T05:45:05Z,2026-10-15,5,78,59,77.0,57.0,9,20,N,44.8,47,1,0.0,1,4,,Sunny,Clear,
 2026-10-10T03:18:03+00:00,2026-10-10T05:45:05Z,2026-10-16,6,80,,79.0,61.0,13,20,NNE,42.8,39,1,0.0,1,3,,Sunny,,
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-10,0,90,66,86.0,73.0,17,30,S,44.2,28,91,0.0,4,47,10.0,Mostly Cloudy then Isolated Showers And Thunderstorms,Showers And Thunderstorms,
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-11,1,73,59,84.0,66.0,26,39,SE,57.6,63,98,1.15,23,91,,Showers And Thunderstorms,Isolated Showers And Thunderstorms then Partly Cloudy,isolated:thunderstorms:|isolated:rain_showers:light|scattered:rain_showers:light|definite:rain_showers:moderate|numerous:rain_showers:moderate|patchy:blowing_dust:
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-12,2,72,53,71.0,61.0,17,32,S,55.0,68,45,0.01,11,41,,Scattered Rain Showers,Scattered Rain Showers,isolated:thunderstorms:|isolated:rain_showers:light|scattered:rain_showers:light
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-13,3,68,52,68.0,55.0,12,22,W,49.8,65,45,0.01,13,36,,Isolated Showers And Thunderstorms,Mostly Clear,isolated:thunderstorms:|isolated:rain_showers:light
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-14,4,73,55,72.0,55.0,5,13,NNW,46.3,56,4,0.0,4,16,,Sunny,Mostly Clear,
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-15,5,78,58,77.0,58.0,15,23,N,44.8,46,1,0.0,1,6,,Sunny,Clear,
+2026-10-10T10:43:04+00:00,2026-10-10T12:24:20Z,2026-10-16,6,80,,79.0,59.0,16,26,N,43.2,40,1,0.0,0,3,,Sunny,,
