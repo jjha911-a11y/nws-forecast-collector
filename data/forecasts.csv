@@ -3780,3 +3780,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-10-16T19:15:03+00:00,2026-10-16T21:08:49Z,2026-10-20,4,75,60,79.0,62.0,14,25,SE,48.5,49,61,0.0,12,24,,Slight Chance Showers And Thunderstorms,Showers And Thunderstorms Likely,slight_chance:thunderstorms:|slight_chance:rain_showers:light
 2026-10-16T19:15:03+00:00,2026-10-16T21:08:49Z,2026-10-21,5,69,57,73.0,60.0,12,23,SSE,50.5,59,61,0.28,17,70,,Showers And Thunderstorms Likely,Chance Rain Showers,chance:rain_showers:light|slight_chance:thunderstorms:|likely:rain_showers:light
 2026-10-16T19:15:03+00:00,2026-10-16T21:08:49Z,2026-10-22,6,67,54,67.0,57.0,6,14,SSW,50.1,66,51,0.19,7,63,,Chance Rain Showers,Chance Rain Showers,chance:rain_showers:light
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-17,0,77,63,79.0,62.0,12,21,NE,35.3,29,22,0.0,0,29,10.0,Partly Sunny,Mostly Cloudy then Slight Chance Rain Showers,
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-18,1,77,62,77.0,63.0,5,10,ENE,35.4,29,22,0.0,1,62,10.0,Slight Chance Rain Showers then Mostly Sunny,Mostly Clear,slight_chance:rain_showers:light
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-19,2,78,63,78.0,62.0,6,13,E,42.2,38,3,0.0,1,17,,Sunny,Mostly Clear,
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-20,3,78,61,78.0,63.0,15,21,SSE,46.8,45,59,0.0,7,26,,Mostly Sunny then Chance Showers And Thunderstorms,Showers And Thunderstorms Likely,
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-21,4,72,57,76.0,61.0,13,22,E,48.7,56,63,0.33,21,66,,Showers And Thunderstorms Likely,Showers And Thunderstorms Likely,chance:rain_showers:light|slight_chance:thunderstorms:|likely:rain_showers:light
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-22,5,68,53,69.0,58.0,10,21,SSW,49.3,63,63,0.19,14,68,,Chance Showers And Thunderstorms,Slight Chance Rain Showers then Mostly Clear,likely:rain_showers:light|chance:rain_showers:light|slight_chance:thunderstorms:
+2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-23,6,68,,67.0,54.0,5,12,SE,46.2,61,15,0.0,7,21,,Sunny,,slight_chance:rain_showers:light
