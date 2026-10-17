@@ -3787,3 +3787,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-21,4,72,57,76.0,61.0,13,22,E,48.7,56,63,0.33,21,66,,Showers And Thunderstorms Likely,Showers And Thunderstorms Likely,chance:rain_showers:light|slight_chance:thunderstorms:|likely:rain_showers:light
 2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-22,5,68,53,69.0,58.0,10,21,SSW,49.3,63,63,0.19,14,68,,Chance Showers And Thunderstorms,Slight Chance Rain Showers then Mostly Clear,likely:rain_showers:light|chance:rain_showers:light|slight_chance:thunderstorms:
 2026-10-17T07:21:52+00:00,2026-10-17T10:34:13Z,2026-10-23,6,68,,67.0,54.0,5,12,SE,46.2,61,15,0.0,7,21,,Sunny,,slight_chance:rain_showers:light
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-17,0,77,64,77.0,62.0,7,15,ENE,34.1,27,8,0.0,0,54,10.0,Mostly Cloudy,Mostly Cloudy,
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-18,1,78,63,77.0,64.0,5,10,ENE,37.2,32,8,0.0,1,54,10.0,Mostly Sunny,Mostly Clear,
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-19,2,81,64,80.0,63.0,5,12,E,43.4,37,2,0.0,0,19,,Sunny,Mostly Clear,
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-20,3,80,64,79.0,64.0,8,17,ESE,48.3,45,36,0.0,12,22,,Slight Chance Showers And Thunderstorms,Slight Chance Showers And Thunderstorms then Chance Showers And Thunderstorms,isolated:thunderstorms:|isolated:rain_showers:light
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-21,4,78,63,77.0,64.0,12,23,E,49.5,47,60,0.01,14,50,,Chance Rain Showers,Rain Showers Likely,slight_chance:thunderstorms:|slight_chance:rain_showers:light|chance:rain_showers:light
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-22,5,71,56,76.0,63.0,10,20,SW,51.5,57,68,0.2,13,69,,Showers And Thunderstorms Likely,Chance Rain Showers,chance:rain_showers:light|likely:rain_showers:light|slight_chance:thunderstorms:
+2026-10-17T18:33:23+00:00,2026-10-17T20:36:38Z,2026-10-23,6,68,55,68.0,56.0,6,13,SW,49.2,64,45,0.04,7,35,,Sunny,Mostly Clear,chance:rain_showers:light|slight_chance:rain_showers:light
