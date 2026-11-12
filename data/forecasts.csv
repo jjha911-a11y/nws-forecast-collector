@@ -4228,3 +4228,10 @@ forecast_updated_at,retrieved_at,forecast_date,lead_days,high_temp_f,low_temp_f,
 2026-11-11T21:22:51+00:00,2026-11-12T00:43:24Z,2026-11-15,3,68,52,66.0,51.0,3,8,NNE,40.0,52,8,0.0,0,25,,Mostly Sunny,Partly Cloudy,
 2026-11-11T21:22:51+00:00,2026-11-12T00:43:24Z,2026-11-16,4,67,51,65.0,52.0,6,14,SE,43.0,58,67,0.0,0,44,,Chance Rain Showers,Rain Showers Likely,slight_chance:rain_showers:light
 2026-11-11T21:22:51+00:00,2026-11-12T00:43:24Z,2026-11-17,5,62,47,64.0,51.0,10,15,WSW,44.5,64,67,0.17,4,64,,Chance Rain Showers,Partly Cloudy,chance:rain_showers:light|likely:rain_showers:light
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-12,0,74,55,74.0,54.0,5,10,ESE,34.8,35,0,0.0,0,7,10.0,Sunny,Partly Cloudy,
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-13,1,75,56,73.0,55.0,16,28,S,38.3,42,32,0.0,0,28,,Mostly Sunny,Chance Rain Showers,
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-14,2,70,51,72.0,55.0,21,36,W,43.9,54,44,0.09,4,43,,Mostly Sunny,Partly Cloudy,scattered:rain_showers:light|isolated:rain_showers:light
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-15,3,68,51,66.0,51.0,3,8,NE,40.0,52,3,0.0,0,25,,Mostly Sunny,Partly Cloudy,
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-16,4,68,51,65.0,52.0,6,14,E,43.0,58,48,0.0,0,44,,Partly Sunny then Slight Chance Rain Showers,Chance Rain Showers,slight_chance:rain_showers:light
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-17,5,64,47,64.0,51.0,10,15,WSW,44.5,64,67,0.17,4,64,,Chance Rain Showers,Chance Rain Showers,chance:rain_showers:light|likely:rain_showers:light
+2026-11-12T06:13:20+00:00,2026-11-12T07:03:09Z,2026-11-18,6,64,,62.0,45.0,6,12,SSW,39.0,60,13,0.0,1,36,,Mostly Sunny,,
