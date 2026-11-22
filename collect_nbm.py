@@ -22,6 +22,22 @@ TIMEOUT       = 90
 MAX_RETRIES   = 3
 MAJOR_CYCLES  = {f"{c:02d}" for c in [1, 7, 13, 19]}
 
+# A single-station block is ~2–5 KB. Anything far larger means the
+# next-station boundary wasn't found and we'd be grabbing the rest of a
+# ~30 MB bulk file — refuse rather than commit that.
+MAX_BLOCK_CHARS = 20_000
+
+# Station header line, tolerant of known format variants:
+#    KLAS   NBM V5.0 NBH GUIDANCE    11/03/2026  0700 UTC   (through early Nov 2026)
+#    KLAS   NBM  NBH GUIDANCE    11/22/2026  1300 UTC       (version token dropped)
+# Station IDs are not just letters: 086092, 2A1, K2J5, CPPC2, ...
+_HDR_TAIL = r'\s+NBM\s+(?:V[\d.]+\s+)?[A-Z]{3}\s+GUIDANCE\b'
+ANY_HDR   = re.compile(r'^\s*\S+' + _HDR_TAIL, re.MULTILINE)
+
+
+def station_hdr(station_id: str) -> re.Pattern:
+    return re.compile(r'^\s*' + re.escape(station_id) + _HDR_TAIL, re.MULTILINE)
+
 PRODUCTS = {
     "NBH": "nbhtx",
     "NBS": "nbstx",
@@ -136,22 +152,20 @@ def extract_station_block(text: str, prod_key: str) -> str | None:
     """
     Find the KLAS station block in a bulk NBM text file.
 
-    NBM bulk files contain all ~9000 stations concatenated. Each station
+    NBM bulk files contain all ~9,600 stations concatenated. Each station
     block begins with a header line of the form:
+        KLAS   NBM  NBS GUIDANCE    11/22/2026  1300 UTC
+    or (V5.0-era, with version token):
         KLAS   NBM V5.0 NBS GUIDANCE  5/09/2026  0100 UTC
-    or (older/alternate):
-        LAS    NBM V5.0 NBS GUIDANCE  5/09/2026  0100 UTC
 
-    The header may have leading whitespace. We search flexibly for both
-    KLAS and LAS identifiers, then log what we find for diagnostics.
+    The header may have leading whitespace. We search for KLAS, then LAS,
+    and cut the block at the next station header of any ID.
     """
 
-    # Debug: show the first few station headers to understand the format
-    any_hdr = re.compile(r'^\s*[A-Z]{3,4}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE',
-                         re.MULTILINE)
-    sample = any_hdr.findall(text[:500_000])
+    # Diagnostics: show the first few station headers
+    sample = [m.group(0).strip() for m in ANY_HDR.finditer(text, 0, 500_000)][:5]
     if sample:
-        log.info(f"  Sample station headers in {prod_key}: {sample[:5]}")
+        log.info(f"  Sample station headers in {prod_key}: {sample}")
     else:
         # Wider fallback: find any line with GUIDANCE in first 200KB
         guidance_lines = [l.strip() for l in text[:200_000].splitlines()
@@ -161,21 +175,26 @@ def extract_station_block(text: str, prod_key: str) -> str | None:
 
     # Try KLAS first (4-letter ICAO), then LAS (3-letter WMO)
     for station_id in [STATION, STATION[1:]]:  # KLAS, then LAS
-        pattern = re.compile(
-            rf'^\s*{re.escape(station_id)}\s+NBM\s+V[\d.]+\s+\w+\s+GUIDANCE',
-            re.MULTILINE
-        )
-        m = pattern.search(text)
+        m = station_hdr(station_id).search(text)
         if m:
             log.info(f"  Found {station_id} header at char {m.start()}: "
-                     f"{text[m.start():m.start()+60].strip()!r}")
+                     f"{m.group(0).strip()!r}")
 
             # Find where the next station starts (same pattern, any station)
-            next_m = any_hdr.search(text, m.end())
+            next_m = ANY_HDR.search(text, m.end())
             block_end = next_m.start() if next_m else len(text)
             block = text[m.start():block_end].rstrip()
-            log.info(f"  Extracted block: {len(block):,} chars, "
-                     f"{block.count(chr(10))+1} lines")
+            n_lines = block.count("\n") + 1
+            log.info(f"  Extracted block: {len(block):,} chars, {n_lines} lines")
+
+            if len(block) > MAX_BLOCK_CHARS:
+                log.error(f"  {prod_key} block is {len(block):,} chars "
+                          f"(limit {MAX_BLOCK_CHARS:,}) — next-station header "
+                          f"not recognised; bulletin format may have changed")
+                return None
+            if not re.search(r'^\s*UTC\b', block, re.MULTILINE):
+                log.error(f"  {prod_key} block has no UTC row — rejecting")
+                return None
             return block
 
     log.error(f"  Neither KLAS nor LAS found in {prod_key} bulletin")
